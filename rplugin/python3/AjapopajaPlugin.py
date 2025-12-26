@@ -1,0 +1,207 @@
+import pynvim
+import json
+import os
+import asyncio
+from agent_client.agent_client import AgentClient
+
+# Configuration and Constants
+API_BASE_URL = "http://127.0.0.1:8000"
+HISTORY_FILE = os.path.expanduser("~/.cache/ajapopaja_history.json")
+
+# Configuration for different LLM workflows
+CALL_TYPES = {
+    "transform": {
+        "system_instructions": "You are an expert engineer helping developers to improve their code. Your output is ONLY the code transformation requested, with no conversational filler or markdown markers unless explicitly asked.",
+        "prompt_sent_message": "Code sent for transformation...",
+        "response_received_message": "Transformation complete. Register 'c' updated. Use \\\"cp to paste.",
+        "chomp": True,
+        "register": "c",
+    },
+    "review": {
+        "system_instructions": "You are an expert engineer. Provide a rigorous code review focusing on correctness, efficiency, and readability. Use Markdown formatting.",
+        "prompt": "Review this code",
+        "prompt_sent_message": "Code sent for review...",
+        "response_received_message": "Review complete. Register 'r' updated. Use \\\"rp to paste.",
+        "chomp": True,
+        "register": "r",
+    },
+}
+
+
+@pynvim.plugin
+class AjapopajaPlugin(object):
+    def __init__(self, vim):
+        self.vim = vim
+        self.agent = AgentClient(API_BASE_URL)
+        self.agent_in_use = False
+        self.history = self._load_history()
+
+    def _load_history(self):
+        """Loads interaction history from the local cache file."""
+        if os.path.exists(HISTORY_FILE):
+            try:
+                with open(HISTORY_FILE, "r") as f:
+                    return json.load(f)
+            except (json.JSONDecodeError, IOError):
+                pass
+        return {"transform": [], "review": []}
+
+    def _persist_history(self):
+        """Helper to save the current history state to disk."""
+        try:
+            os.makedirs(os.path.dirname(HISTORY_FILE), exist_ok=True)
+            with open(HISTORY_FILE, "w") as f:
+                json.dump(self.history, f)
+        except IOError as e:
+            err = e
+            self.vim.async_call(
+                lambda: self.vim.err_write(f"Ajapopaja History Error: {str(err)}\n")
+            )
+
+    def _save_history(self, call_type, item):
+        """Persists a new interaction and trims to the last 50 entries."""
+        if call_type not in self.history:
+            self.history[call_type] = []
+
+        self.history[call_type].append(item)
+        self.history[call_type] = self.history[call_type][-50:]
+        self._persist_history()
+
+    @pynvim.function("AjapopajaGetHistory", sync=True)
+    def get_history(self, args):
+        """Synchronous retrieval of history for the Lua UI."""
+        return json.dumps(self.history)
+
+    @pynvim.function("AjapopajaDeleteEntry", sync=True)
+    def delete_entry(self, args):
+        """Deletes a specific entry by view type and index."""
+        try:
+            view = args[0]  # 'transform' or 'review'
+            index = int(args[1]) - 1  # Convert Lua 1-index to Python 0-index
+
+            if view in self.history and 0 <= index < len(self.history[view]):
+                self.history[view].pop(index)
+                self._persist_history()
+                return True
+        except (ValueError, IndexError, KeyError, TypeError):
+            pass
+        return False
+
+    @pynvim.function("AjapopajaClearHistory", sync=True)
+    def clear_history(self, args):
+        """Clears all history for a specific view (transform or review)."""
+        try:
+            view = args[0]
+            if view in self.history:
+                self.history[view] = []
+                self._persist_history()
+                return True
+        except (KeyError, IndexError):
+            pass
+        return False
+
+    @pynvim.function("AjapopajaAgentCall", sync=False)
+    def call_agent(self, args):
+        """Entry point for Lua to trigger an asynchronous LLM request."""
+        if self.agent_in_use:
+            self.vim.command("echo 'Ajapopaja: Agent busy. Please wait.'")
+            return
+
+        selected_text = args[0] if len(args) > 0 else ""
+        lang = args[1] if len(args) > 1 else ""
+        call_type = args[2] if len(args) > 2 else "transform"
+        user_prompt = args[3] if len(args) > 3 else ""
+
+        if call_type not in CALL_TYPES:
+            self.vim.command(f'echo "Ajapopaja Error: Unknown call type {call_type}"')
+            return
+
+        config = CALL_TYPES[call_type]
+        self.agent_in_use = True
+        self.vim.command(f'echo "{config["prompt_sent_message"]}"')
+
+        # Schedule the async task
+        asyncio.create_task(
+            self._async_agent_call(
+                selected_text=selected_text,
+                lang=lang,
+                call_type=call_type,
+                user_prompt=user_prompt,
+                config=config,
+            )
+        )
+
+    async def _async_agent_call(
+        self, selected_text, lang, call_type, user_prompt, config
+    ):
+        """Handles the LLM request lifecycle, history saving, and register update."""
+        try:
+            agent_uid, _ = await self.agent.create_agent(
+                "vim_agent",
+                config["system_instructions"],
+                agent_type="plain",
+                model="gemma3:27b",
+            )
+
+            if not agent_uid:
+                raise Exception("Failed to create agent session.")
+
+            final_prompt = self._build_prompt(
+                user_prompt if user_prompt else config.get("prompt", ""),
+                lang,
+                selected_text,
+            )
+
+            response = await self.agent.chat(final_prompt)
+            reply_text = response.reply
+
+            if config.get("chomp"):
+                reply_text = self._strip_code_fence(reply_text)
+
+            history_item = {
+                "prompt": user_prompt or config.get("prompt", "Code Review"),
+                "lang": lang,
+                "response": reply_text,
+            }
+            self._save_history(call_type, history_item)
+
+            def finalize():
+                self.agent_in_use = False
+                # Update appropriate register (c or r)
+                self.vim.funcs.setreg(config["register"], reply_text, "v")
+                self.vim.command(f'echo "{config["response_received_message"]}"')
+
+            self.vim.async_call(finalize)
+
+        except Exception as e:
+            err = e
+
+            def on_error():
+                self.agent_in_use = False
+                self.vim.err_write(f"Ajapopaja API Error: {str(err)}\n")
+
+            self.vim.async_call(on_error)
+        finally:
+            # Clean up server resources
+            await self.agent.release(delete_resources=True)
+
+    def _build_prompt(self, prompt, lang, selected_text):
+        """Constructs a structured prompt with Markdown code blocks."""
+        parts = []
+        if prompt:
+            parts.append(prompt)
+        if selected_text:
+            lang_label = lang if lang else ""
+            parts.append(f"\n\n```{lang_label}\n{selected_text}\n```")
+        return "".join(parts)
+
+    def _strip_code_fence(self, text):
+        """Removes Markdown code delimiters from LLM responses."""
+        lines = text.strip().splitlines()
+        if not lines:
+            return text
+        if lines and lines[0].startswith("```"):
+            lines.pop(0)
+        if lines and lines[-1].startswith("```"):
+            lines.pop(-1)
+        return "\n".join(lines).strip()
