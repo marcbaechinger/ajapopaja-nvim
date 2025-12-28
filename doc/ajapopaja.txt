@@ -1,0 +1,101 @@
+*ajapopaja.txt* AI-Powered Code Transformation & Review for Neovim
+
+==============================================================================
+AJAPOPAJA                                                          *ajapopaja*
+
+A high-performance Neovim interface for LLMs, featuring asynchronous 
+execution, optimistic concurrency control, and persistent history.
+
+Author:  VIM AI Plugin Distinguished Engineer
+Version: 2025.12
+License: MIT
+
+                                 Reference
+                                 ---------
+        1. Introduction.........................|ajapopaja-intro|
+        2. Commands.............................|ajapopaja-commands|
+        3. Default Mappings.....................|ajapopaja-mappings|
+        4. Features.............................|ajapopaja-features|
+           4.1 Transformations..................|ajapopaja-transform|
+           4.2 History Browser..................|ajapopaja-history|
+        5. Concurrency & Security...............|ajapopaja-security|
+        6. Troubleshooting......................|ajapopaja-trouble|
+
+==============================================================================
+1. INTRODUCTION                                             *ajapopaja-intro*
+
+Ajapopaja provides a robust bridge between Neovim and Large Language Models.
+Unlike simple wrappers, it tracks buffer state using SHA256 hashes to ensure 
+that LLM responses are never applied to a buffer that has changed since the 
+request was initiated.
+
+==============================================================================
+2. COMMANDS                                             *ajapopaja-commands*
+
+The plugin registers several user commands for command-line access:
+
+:AjapopajaHistory       Open the floating history browser.
+:AjapopajaSelectModel   Open a selection menu for available LLM models.
+:AjapopajaApplyLatest   Immediately apply the most recent transformation.
+:AjapopajaDocs          Trigger a "Add/Improve Documentation" request.
+
+Note: Commands that operate on code context support range selection.
+
+==============================================================================
+3. DEFAULT MAPPINGS                                     *ajapopaja-mappings*
+
+Keybindings are initialized via `require('ajapopaja').setup()`.
+
+| Mode | Mapping      | Command / Function                          |
+|------|--------------|--------------------------------------------|
+| v    | <leader>ad   | Add/Improve documentation                  |
+| v    | <leader>ai   | Implement function logic                   |
+| v    | <leader>au   | Create unit tests                          |
+| v    | <leader>at   | Custom transformation prompt               |
+| n/v  | <leader>ar   | Analyze/Review selection                   |
+| n    | <leader>aw   | Open History Window                        |
+| n    | <leader>am   | Select LLM Model                           |
+| n    | <leader>ap   | Apply latest transformation                |
+
+==============================================================================
+4. FEATURES                                             *ajapopaja-features*
+
+4.1 TRANSFORMATIONS                                   *ajapopaja-transform*
+
+Transformations are non-blocking. When triggered:
+1. The selection is hashed.
+2. The UI enters a "loading" state (visible in the statusline).
+3. The LLM processes the request via the Python RPC backend.
+4. Results are stored in the History cache.
+
+4.2 HISTORY BROWSER                                    *ajapopaja-history*
+
+Open the browser with `<leader>aw` or `:AjapopajaHistory`.
+Navigation controls (Normal Mode):
+- [h/l]: Previous/Next history entry.
+- [t/r]: Toggle between "Transformation" and "Review" views.
+- [x]:   Delete the current entry from disk/cache.
+- [C]:   Clear all entries for the active view.
+- [Enter]: Apply transformation to the original buffer coordinates.
+
+==============================================================================
+5. CONCURRENCY & SECURITY                              *ajapopaja-security*
+
+Ajapopaja uses **Optimistic Concurrency Control (OCC)**.
+
+Because LLMs can take seconds to respond, a user might edit the code while 
+waiting. To prevent corruption, Ajapopaja stores a SHA256 hash of the 
+selected text. Before applying a transformation, it verifies if the current 
+buffer content matches the hash. If a mismatch is detected, the 
+transformation is aborted with a security warning.
+
+==============================================================================
+6. TROUBLESHOOTING                                      *ajapopaja-trouble*
+
+If commands are missing or the history is empty:
+1. Run `:checkhealth ajapopaja` to verify the Python RPC bridge.
+2. Ensure your Python dependencies are installed in your provider's venv.
+3. Run `:UpdateRemotePlugins` if you have modified the Python server code.
+
+==============================================================================
+vim:tw=78:ts=8:ft=help:norl:

@@ -11,6 +11,7 @@ local available_models = {
 	"qwen3-coder:30b",
 	"gemma3:27b",
 	"gpt-oss:20b",
+	"devstral-small-2:latest",
 	"codestral:22b",
 	"mistral-small3.2:24b",
 	"dolphin-mistral:7b",
@@ -451,8 +452,21 @@ function M.ajapopaja_review()
 	vim.fn.AjapopajaAgentCall(table.concat(text_lines, "\n"), get_programming_language(), "review", "")
 end
 
--- Plugin Setup
 function M.setup()
+	local commands = {
+		AjapopajaHistory = open_window,
+		AjapopajaSelectModel = M.ajapopaja_select_model,
+		AjapopajaApplyLatest = M.ajapopaja_apply_latest,
+		AjapopajaDocs = M.ajapopaja_add_documentation,
+	}
+
+	for cmd_name, func in pairs(commands) do
+		vim.api.nvim_create_user_command(cmd_name, func, {
+			desc = "Ajapopaja: " .. cmd_name,
+			range = true,
+		})
+	end
+
 	vim.keymap.set(
 		{ "v" },
 		"<leader>ad",
@@ -483,8 +497,8 @@ function M.setup()
 		M.ajapopaja_review,
 		{ silent = true, desc = "Ajapopaja: Review selection" }
 	)
-	vim.keymap.set("n", "<leader>aw", open_window, { desc = "Ajapopaja: Open history window" })
-	vim.keymap.set("n", "<leader>am", M.ajapopaja_select_model, { desc = "Ajapopaja: Select LLM Model" })
+	vim.keymap.set("n", "<leader>aw", open_window, { desc = "Ajapopaja: Open history window..." })
+	vim.keymap.set("n", "<leader>am", M.ajapopaja_select_model, { desc = "Ajapopaja: Select LLM Model..." })
 	vim.keymap.set("n", "<leader>ap", M.ajapopaja_apply_latest, { desc = "Ajapopaja: Apply Latest Transformation" })
 end
 
