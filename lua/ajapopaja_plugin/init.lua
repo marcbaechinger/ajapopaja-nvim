@@ -19,7 +19,10 @@ local available_models = {
 	"gemma3:12b",
 	"gemma3:latest",
 }
+local current_model = "qwen3-coder:30b"
 
+-- Helper functions
+--
 -- Identify programming language based on buffer filetype
 local function get_programming_language()
 	local ft = vim.bo.filetype
@@ -73,11 +76,13 @@ end
 -- Getter for statusline components (e.g., Lualine)
 function M.get_status()
 	if is_loading then
-		return "󱚣 Ajapopaja..."
+		return "󱚣 Ajapopaja: " .. current_model
 	end
 	return ""
 end
 
+-- History managment
+--
 -- Execute text replacement with Optimistic Concurrency Control
 local function execute_replacement(item)
 	if not item or not last_active_buf or not last_selection then
@@ -85,7 +90,6 @@ local function execute_replacement(item)
 		return false
 	end
 
-	-- SAFETY CHECK: Verify if the buffer content has changed since the request started
 	if last_selection[5] then
 		local current_hash = calculate_range_hash(last_active_buf, last_selection)
 		if current_hash ~= last_selection[5] then
@@ -123,6 +127,28 @@ local function execute_replacement(item)
 	end
 end
 
+-- Apply the active item in the history window
+local function apply_current_history()
+	if current_view ~= "transform" then
+		print("Ajapopaja: You can only apply transformations, not reviews.")
+		return
+	end
+
+	local items = history_cache[current_view]
+	if #items == 0 then
+		return
+	end
+
+	current_index = math.max(1, math.min(current_index, #items))
+	local item = items[current_index]
+
+	if execute_replacement(item) then
+		if win and vim.api.nvim_win_is_valid(win) then
+			vim.api.nvim_win_close(win, true)
+		end
+	end
+end
+
 -- Delete current entry from history
 local function delete_current_entry()
 	local items = history_cache[current_view]
@@ -156,107 +182,69 @@ local function clear_entire_history()
 	end)
 end
 
--- Apply the active item in the history window
-local function apply_current_history()
-	if current_view ~= "transform" then
-		print("Ajapopaja: You can only apply transformations, not reviews.")
-		return
-	end
+-- UI elements --
+--
+-- Open a dialog for entering a multiline md prompt
+local function create_multi_line_input(title, callback)
+	local bufnr = vim.api.nvim_create_buf(false, true)
 
-	local items = history_cache[current_view]
-	if #items == 0 then
-		return
-	end
+	-- 1. Set Buffer Options for Markdown
+	-- Using vim.bo (buffer-local options) is preferred in modern Neovim Lua
+	vim.bo[bufnr].filetype = "markdown"
+	vim.bo[bufnr].syntax = "markdown"
+	vim.bo[bufnr].bufhidden = "wipe" -- Automatically clean up memory
 
-	current_index = math.max(1, math.min(current_index, #items))
-	local item = items[current_index]
-
-	if execute_replacement(item) then
-		if win and vim.api.nvim_win_is_valid(win) then
-			vim.api.nvim_win_close(win, true)
-		end
-	end
-end
-
--- Quickly apply the most recent transformation result
-function M.ajapopaja_apply_latest()
-	sync_history()
-	local transforms = history_cache.transform
-	if #transforms == 0 then
-		print("Ajapopaja: No transformation history found.")
-		return
-	end
-	execute_replacement(transforms[#transforms])
-end
-
--- Model Selection UI
-function M.ajapopaja_select_model()
-	vim.ui.select(available_models, {
-		prompt = "Select LLM Model:",
-	}, function(choice)
-		if choice then
-			vim.fn.AjapopajaSetModel(choice)
-		end
-	end)
-end
-
--- Render the history UI in the floating buffer
-function M.render_history()
-	if not buf or not vim.api.nvim_buf_is_valid(buf) then
-		return
-	end
-	local items = history_cache[current_view]
-	local content = {}
-
-	-- Defensive Index Clamping to prevent nil access
-	if #items > 0 then
-		current_index = math.max(1, math.min(current_index, #items))
-	end
-
-	if #items == 0 then
-		content = { "# No " .. current_view .. " history found" }
-	else
-		local item = items[current_index]
-		content = {
-			"# "
-				.. (current_view == "transform" and "Transformation" or "Review")
-				.. " ("
-				.. current_index
-				.. "/"
-				.. #items
-				.. ")",
-			"**Prompt:** " .. (item.prompt or "N/A"),
-			"**Model:** " .. (item.model or "Unknown"),
-			"---",
-		}
-
-		-- Conditional Fencing: transforms are wrapped in code blocks, reviews are raw MD
-		if current_view == "transform" then
-			table.insert(content, "```" .. (item.lang or "text"))
-			table.insert(content, item.response)
-			table.insert(content, "```")
-		else
-			table.insert(content, item.response)
-		end
-
-		table.insert(content, "")
-		table.insert(content, "---")
-		table.insert(content, "Controls: [h/l] Nav | [t/r] Switch View | [x] Delete | [C] Clear All | [Enter] Apply")
-	end
-
-	vim.api.nvim_set_option_value("modifiable", true, { buf = buf })
-	vim.api.nvim_buf_set_lines(buf, 0, -1, false, vim.split(table.concat(content, "\n"), "\n"))
-	vim.api.nvim_set_option_value("modifiable", false, { buf = buf })
-
-	-- Update Floating Window Title
-	local title_text = " Ajapopaja: " .. current_view .. " (" .. current_index .. "/" .. #items .. ") "
-	vim.api.nvim_win_set_config(win, {
-		title = { { title_text, "WhidHeader" } },
+	-- 2. Window Layout (as before)
+	local width = math.floor(vim.o.columns * 0.7)
+	local height = math.floor(vim.o.lines * 0.5)
+	local win_opts = {
+		relative = "editor",
+		width = width,
+		height = height,
+		row = math.floor((vim.o.lines - height) / 2),
+		col = math.floor((vim.o.columns - width) / 2),
+		style = "minimal",
+		border = "rounded",
+		title = { { " " .. title .. " (Markdown) ", "FloatTitle" } },
 		title_pos = "center",
-	})
+	}
+
+	local winnr = vim.api.nvim_open_win(bufnr, true, win_opts)
+
+	-- 3. Window-local UI enhancements
+	-- Ensure code blocks and formatting are rendered nicely
+	vim.wo[winnr].wrap = true
+	vim.wo[winnr].conceallevel = 2
+	vim.wo[winnr].concealcursor = "nc"
+
+	-- 4. Force Treesitter attachment (if available)
+	-- This ensures modern highlighting even in temporary buffers
+	local ok, ts = pcall(require, "nvim-treesitter.configs")
+	if ok then
+		vim.treesitter.start(bufnr, "markdown")
+	end
+
+	vim.cmd("startinsert")
+
+	-- 5. Logic Handlers
+	local function submit()
+		local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
+		vim.api.nvim_win_close(winnr, true)
+		if callback then
+			callback(lines)
+		end
+	end
+
+	-- Keybindings
+	local opts = { buffer = bufnr, silent = true }
+	vim.keymap.set("i", "<C-s>", submit, opts)
+	vim.keymap.set("n", "<CR>", submit, opts)
+	vim.keymap.set("n", "q", function()
+		vim.api.nvim_win_close(winnr, true)
+	end, opts)
 end
 
--- Setup and open the floating window
+-- Open the floating window to browse the history
 local function open_window()
 	sync_history()
 	local items = history_cache[current_view]
@@ -312,10 +300,87 @@ local function open_window()
 	M.render_history()
 end
 
+-- Quickly apply the most recent transformation result
+function M.ajapopaja_apply_latest()
+	sync_history()
+	local transforms = history_cache.transform
+	if #transforms == 0 then
+		print("Ajapopaja: No transformation history found.")
+		return
+	end
+	execute_replacement(transforms[#transforms])
+end
+
+-- Model Selection UI
+function M.ajapopaja_select_model()
+	vim.ui.select(available_models, {
+		prompt = "Select LLM Model:",
+	}, function(choice)
+		if choice then
+			vim.fn.AjapopajaSetModel(choice)
+		end
+	end)
+end
+
+-- Render the history UI in the floating buffer
+function M.render_history()
+	if not buf or not vim.api.nvim_buf_is_valid(buf) then
+		return
+	end
+	local items = history_cache[current_view]
+	local content = {}
+
+	-- Defensive Index Clamping to prevent nil access
+	if #items > 0 then
+		current_index = math.max(1, math.min(current_index, #items))
+	end
+
+	if #items == 0 then
+		content = { "# No " .. current_view .. " history found" }
+	else
+		local item = items[current_index]
+		content = {
+			"# "
+				.. (current_view == "transform" and "Transformation" or "Review")
+				.. " ("
+				.. current_index
+				.. "/"
+				.. #items
+				.. ")",
+			"**Prompt:** " .. (item.prompt or "N/A"),
+			"**Model:** " .. (item.model or "Unknown"),
+			"---",
+		}
+		table.insert(content, "Controls: [h/l] Nav | [t/r] Switch View | [x] Delete | [C] Clear All | [Enter] Apply")
+		table.insert(content, "---")
+		-- Conditional Fencing: transforms are wrapped in code blocks, reviews are raw MD
+		if current_view == "transform" then
+			table.insert(content, "```" .. (item.lang or "text"))
+			table.insert(content, item.response)
+			table.insert(content, "```")
+		else
+			table.insert(content, item.response)
+		end
+
+		table.insert(content, "")
+		table.insert(content, "---")
+		table.insert(content, "Controls: [h/l] Nav | [t/r] Switch View | [x] Delete | [C] Clear All | [Enter] Apply")
+	end
+
+	vim.api.nvim_set_option_value("modifiable", true, { buf = buf })
+	vim.api.nvim_buf_set_lines(buf, 0, -1, false, vim.split(table.concat(content, "\n"), "\n"))
+	vim.api.nvim_set_option_value("modifiable", false, { buf = buf })
+
+	-- Update Floating Window Title
+	local title_text = " Ajapopaja: " .. current_view .. " (" .. current_index .. "/" .. #items .. ") "
+	vim.api.nvim_win_set_config(win, {
+		title = { { title_text, "WhidHeader" } },
+		title_pos = "center",
+	})
+end
 -- Transformation Logic
 
 local function transform(prompt)
-	capture_context()
 	if not last_active_buf or not last_selection then
 		print("Ajapopaja: No valid selection found.")
 		return
@@ -339,14 +404,17 @@ local function transform(prompt)
 end
 
 function M.ajapopaja_transform()
-	vim.ui.input({ prompt = "Enter transformation prompt: " }, function(input)
-		if input and input ~= "" then
-			transform(input)
+	capture_context()
+	create_multi_line_input("Describe the code transformation...", function(lines)
+		local instruction = table.concat(lines, "\n")
+		if instruction ~= "" then
+			transform(instruction)
 		end
 	end)
 end
 
 function M.ajapopaja_implement_function()
+	capture_context()
 	transform("Implement this function")
 end
 
@@ -379,13 +447,27 @@ end
 
 -- Plugin Setup
 function M.setup()
-	local opts = { silent = true }
-	vim.keymap.set({ "v" }, "<leader>aji", M.ajapopaja_implement_function, opts)
-	vim.keymap.set({ "n", "v" }, "<leader>ajt", M.ajapopaja_transform, opts)
-	vim.keymap.set({ "n", "v" }, "<leader>ajr", M.ajapopaja_review, opts)
-	vim.keymap.set("n", "<leader>ajw", open_window, opts)
-	vim.keymap.set("n", "<leader>ajm", M.ajapopaja_select_model, { desc = "Ajapopaja: Select LLM Model" })
-	vim.keymap.set("n", "<leader>ajp", M.ajapopaja_apply_latest, { desc = "Ajapopaja: Apply Latest Transformation" })
+	vim.keymap.set(
+		{ "v" },
+		"<leader>ai",
+		M.ajapopaja_implement_function,
+		{ silent = true, desc = "Ajapopaja: Implement function" }
+	)
+	vim.keymap.set(
+		{ "v" },
+		"<leader>at",
+		M.ajapopaja_transform,
+		{ silent = true, desc = "Ajapopaja: Transform selection..." }
+	)
+	vim.keymap.set(
+		{ "n", "v" },
+		"<leader>ar",
+		M.ajapopaja_review,
+		{ silent = true, desc = "Ajapopaja: Review selection" }
+	)
+	vim.keymap.set("n", "<leader>aw", open_window, { desc = "Ajapopaja: Open history window" })
+	vim.keymap.set("n", "<leader>am", M.ajapopaja_select_model, { desc = "Ajapopaja: Select LLM Model" })
+	vim.keymap.set("n", "<leader>ap", M.ajapopaja_apply_latest, { desc = "Ajapopaja: Apply Latest Transformation" })
 end
 
 return M

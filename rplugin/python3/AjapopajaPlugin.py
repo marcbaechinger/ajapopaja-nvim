@@ -35,7 +35,7 @@ class AjapopajaPlugin(object):
         self.agent = AgentClient(API_BASE_URL)
         self.agent_in_use = False
         self.history = self._load_history()
-        self.current_model = "gemma3:27b"
+        self.current_model = "qwen3-coder:30b"
 
     def _load_history(self):
         """Loads interaction history from the local cache file."""
