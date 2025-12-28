@@ -232,6 +232,7 @@ function M.render_history()
 				.. #items
 				.. ")",
 			"**Prompt:** " .. (item.prompt or "N/A"),
+			"**Model:** " .. (item.model or "Unknown"),
 			"---",
 		}
 
