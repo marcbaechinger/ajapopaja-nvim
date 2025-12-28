@@ -3,7 +3,8 @@ local M = {}
 -- Internal State
 local buf, win
 local last_active_buf = nil
-local last_selection = nil -- { s_line, s_col, e_line, e_col }
+-- last_selection now includes the original text hash for safety
+local last_selection = nil -- { s_line, s_col, e_line, e_col, hash }
 local current_view = "transform"
 local current_index = 1
 local history_cache = { transform = {}, review = {} }
@@ -30,6 +31,7 @@ local function capture_context()
 			s_pos[3] - 1, -- start_col
 			e_pos[2] - 1, -- end_line
 			e_pos[3], -- end_col (exclusive)
+			nil, -- hash placeholder
 		}
 	end
 end
@@ -40,13 +42,32 @@ local function sync_history()
 	history_cache = vim.json.decode(raw_history)
 end
 
--- Internal function to execute text replacement
+-- Helper to calculate hash of a text range
+local function calculate_range_hash(buffer, selection)
+	local lines = vim.api.nvim_buf_get_text(buffer, selection[1], selection[2], selection[3], selection[4], {})
+	local content = table.concat(lines, "\n")
+	return vim.fn.sha256(content)
+end
+
+-- Internal function to execute text replacement with safety checks
 local function execute_replacement(item)
 	if not item or not last_active_buf or not last_selection then
 		print("Ajapopaja: No valid context or content to apply.")
 		return false
 	end
 
+	-- SAFETY CHECK: Verify if the buffer content has changed since capture
+	if last_selection[5] then
+		local current_hash = calculate_range_hash(last_active_buf, last_selection)
+		if current_hash ~= last_selection[5] then
+			vim.api.nvim_err_writeln(
+				"Ajapopaja Security: The buffer content has changed since the transformation started. Apply aborted to prevent code corruption."
+			)
+			return false
+		end
+	end
+
+	-- Retrieve target line text to calculate valid byte length for clamping
 	local target_line_content =
 		vim.api.nvim_buf_get_lines(last_active_buf, last_selection[3], last_selection[3] + 1, false)[1]
 	if not target_line_content then
@@ -56,6 +77,7 @@ local function execute_replacement(item)
 	local actual_end_col = math.min(last_selection[4], #target_line_content)
 	local lines = vim.split(item.response, "\n")
 
+	-- Execute text replacement
 	local success, err = pcall(function()
 		vim.api.nvim_buf_set_text(
 			last_active_buf,
@@ -147,6 +169,7 @@ function M.render_history()
 	local items = history_cache[current_view]
 	local content = {}
 
+	-- ARCHITECTURAL FIX: Always clamp the index before rendering to prevent nil indexing
 	if #items > 0 then
 		current_index = math.max(1, math.min(current_index, #items))
 	end
@@ -167,6 +190,7 @@ function M.render_history()
 			"---",
 		}
 
+		-- Logic for conditional fencing: transformations are fenced, reviews are raw markdown
 		if current_view == "transform" then
 			table.insert(content, "```" .. (item.lang or "text"))
 			table.insert(content, item.response)
@@ -249,11 +273,13 @@ end
 -- Trigger an LLM transformation
 function M.ajapopaja_transform()
 	capture_context()
-	-- Fix: Ensure selection is captured correctly before proceeding
 	if not last_active_buf or not last_selection then
 		print("Ajapopaja: No valid selection found.")
 		return
 	end
+
+	-- Capture the hash of the selection at start
+	last_selection[5] = calculate_range_hash(last_active_buf, last_selection)
 
 	local text_lines = vim.api.nvim_buf_get_text(
 		last_active_buf,
@@ -274,11 +300,13 @@ end
 -- Trigger an LLM code review
 function M.ajapopaja_review()
 	capture_context()
-	-- Fix: Ensure selection is captured correctly before proceeding
 	if not last_active_buf or not last_selection then
 		print("Ajapopaja: No valid selection found.")
 		return
 	end
+
+	-- Capture hash for reviews as well, though reviews are read-only
+	last_selection[5] = calculate_range_hash(last_active_buf, last_selection)
 
 	local text_lines = vim.api.nvim_buf_get_text(
 		last_active_buf,
