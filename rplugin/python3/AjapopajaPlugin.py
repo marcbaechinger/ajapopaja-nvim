@@ -14,7 +14,7 @@ CALL_TYPES = {
     "transform": {
         "system_instructions": "You are an expert engineer helping developers to improve their code. Your output is ONLY the code transformation requested, with no conversational filler or markdown markers unless explicitly asked.",
         "prompt_sent_message": "Code sent for transformation...",
-        "response_received_message": "Transformation complete. Register 'c' updated. Use \\\"cp to paste.",
+        "response_received_message": "Transformation complete. Register 'c' updated. Use \"cp to paste.",
         "chomp": True,
         "register": "c",
     },
@@ -22,8 +22,8 @@ CALL_TYPES = {
         "system_instructions": "You are an expert engineer. Provide a rigorous code review focusing on correctness, efficiency, and readability. Use Markdown formatting.",
         "prompt": "Review this code",
         "prompt_sent_message": "Code sent for review...",
-        "response_received_message": "Review complete. Register 'r' updated. Use \\\"rp to paste.",
-        "chomp": True,
+        "response_received_message": "Review complete. Register 'r' updated. Use \"rp to paste.",
+        "chomp": False,
         "register": "r",
     },
 }
@@ -36,6 +36,7 @@ class AjapopajaPlugin(object):
         self.agent = AgentClient(API_BASE_URL)
         self.agent_in_use = False
         self.history = self._load_history()
+        self.current_model = "gemma3:27b"  # Default model state
 
     def _load_history(self):
         """Loads interaction history from the local cache file."""
@@ -72,6 +73,15 @@ class AjapopajaPlugin(object):
     def get_history(self, args):
         """Synchronous retrieval of history for the Lua UI."""
         return json.dumps(self.history)
+
+    @pynvim.function("AjapopajaSetModel", sync=True)
+    def set_model(self, args):
+        """Updates the active LLM model."""
+        if len(args) > 0:
+            self.current_model = args[0]
+            self.vim.command(f"echo 'Ajapopaja: Model set to {self.current_model}'")
+            return True
+        return False
 
     @pynvim.function("AjapopajaDeleteEntry", sync=True)
     def delete_entry(self, args):
@@ -138,12 +148,12 @@ class AjapopajaPlugin(object):
     ):
         """Handles the lifecycle of the LLM request and updates Neovim state."""
         try:
-            # 1. Initialize the Agent Session
+            # 1. Initialize the Agent Session using the currently selected model
             agent_uid, _ = await self.agent.create_agent(
                 "vim_agent",
                 config["system_instructions"],
                 agent_type="plain",
-                model="gemma3:27b",
+                model=self.current_model,
             )
 
             if not agent_uid:
