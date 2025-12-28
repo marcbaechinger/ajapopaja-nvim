@@ -8,16 +8,15 @@ local current_index = 1
 local history_cache = { transform = {}, review = {} }
 local is_loading = false
 local available_models = {
+	"qwen3-coder:30b",
 	"gemma3:27b",
-	"mistral-small3.2:24b",
 	"gpt-oss:20b",
+	"codestral:22b",
+	"mistral-small3.2:24b",
+	"dolphin-mistral:7b",
 	"qwen3:14b",
 	"qwen3:30b",
-	"qwen3-coder:30b",
-	"codestral:22b",
-	"dolphin-mistral:7b",
 	"gemma3:12b",
-	"gemma3:latest",
 }
 local current_model = "qwen3-coder:30b"
 
@@ -318,6 +317,7 @@ function M.ajapopaja_select_model()
 	}, function(choice)
 		if choice then
 			vim.fn.AjapopajaSetModel(choice)
+			current_model = choice
 		end
 	end)
 end
@@ -335,25 +335,21 @@ function M.render_history()
 		current_index = math.max(1, math.min(current_index, #items))
 	end
 
+	local title = (current_view == "transform" and "Transformation" or "Review")
 	if #items == 0 then
 		content = { "# No " .. current_view .. " history found" }
 	else
 		local item = items[current_index]
+		local controls = "Controls: [h/l] Nav | [t/r] Switch View | [x] Delete | [C] Clear All | [Enter] Apply"
+		if current_view ~= "transform" then
+			controls = "Controls: [h/l] Nav | [t/r] Switch View | [x] Delete | [C] Clear All"
+		end
 		content = {
-			"# "
-				.. (current_view == "transform" and "Transformation" or "Review")
-				.. " ("
-				.. current_index
-				.. "/"
-				.. #items
-				.. ")",
 			"**Prompt:** " .. (item.prompt or "N/A"),
 			"**Model:** " .. (item.model or "Unknown"),
+			controls,
 			"---",
 		}
-		table.insert(content, "Controls: [h/l] Nav | [t/r] Switch View | [x] Delete | [C] Clear All | [Enter] Apply")
-		table.insert(content, "---")
-		-- Conditional Fencing: transforms are wrapped in code blocks, reviews are raw MD
 		if current_view == "transform" then
 			table.insert(content, "```" .. (item.lang or "text"))
 			table.insert(content, item.response)
@@ -364,7 +360,7 @@ function M.render_history()
 
 		table.insert(content, "")
 		table.insert(content, "---")
-		table.insert(content, "Controls: [h/l] Nav | [t/r] Switch View | [x] Delete | [C] Clear All | [Enter] Apply")
+		table.insert(content, controls)
 	end
 
 	vim.api.nvim_set_option_value("modifiable", true, { buf = buf })
@@ -372,7 +368,7 @@ function M.render_history()
 	vim.api.nvim_set_option_value("modifiable", false, { buf = buf })
 
 	-- Update Floating Window Title
-	local title_text = " Ajapopaja: " .. current_view .. " (" .. current_index .. "/" .. #items .. ") "
+	local title_text = " Ajapopaja: " .. title .. " (" .. current_index .. "/" .. #items .. ") "
 	vim.api.nvim_win_set_config(win, {
 		title = { { title_text, "WhidHeader" } },
 		title_pos = "center",
@@ -413,9 +409,19 @@ function M.ajapopaja_transform()
 	end)
 end
 
+function M.ajapopaja_add_documentation()
+	capture_context()
+	transform("Add or improve the documentation")
+end
+
 function M.ajapopaja_implement_function()
 	capture_context()
 	transform("Implement this function")
+end
+
+function M.ajapopaja_add_unit_tests()
+	capture_context()
+	transform("Create unit tests to test the functionality thoroughly")
 end
 
 -- Review Logic
@@ -449,9 +455,21 @@ end
 function M.setup()
 	vim.keymap.set(
 		{ "v" },
+		"<leader>ad",
+		M.ajapopaja_add_documentation,
+		{ silent = true, desc = "Ajapopaja: Add or improve documentation" }
+	)
+	vim.keymap.set(
+		{ "v" },
 		"<leader>ai",
 		M.ajapopaja_implement_function,
 		{ silent = true, desc = "Ajapopaja: Implement function" }
+	)
+	vim.keymap.set(
+		{ "v" },
+		"<leader>au",
+		M.ajapopaja_add_unit_tests,
+		{ silent = true, desc = "Ajapopaja: Create unit test" }
 	)
 	vim.keymap.set(
 		{ "v" },
