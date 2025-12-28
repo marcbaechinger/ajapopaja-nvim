@@ -3,11 +3,11 @@ local M = {}
 -- Internal State
 local buf, win
 local last_active_buf = nil
--- last_selection now includes the original text hash for safety
 local last_selection = nil -- { s_line, s_col, e_line, e_col, hash }
 local current_view = "transform"
 local current_index = 1
 local history_cache = { transform = {}, review = {} }
+local is_loading = false -- Tracks if the LLM is currently thinking
 
 -- Identify programming language based on buffer filetype
 local function get_programming_language()
@@ -42,6 +42,21 @@ local function sync_history()
 	history_cache = vim.json.decode(raw_history)
 end
 
+-- Callback used by Python backend to signal completion
+function M.set_loading(state)
+	is_loading = state
+	-- Force a statusline redraw
+	vim.cmd("redrawstatus")
+end
+
+-- Public function to be used in statuslines (e.g., Lualine)
+function M.get_status()
+	if is_loading then
+		return "󱚣  Ajapopaja at work..." -- Nerd Font Icon: Thinking/Bot
+	end
+	return ""
+end
+
 -- Helper to calculate hash of a text range
 local function calculate_range_hash(buffer, selection)
 	local lines = vim.api.nvim_buf_get_text(buffer, selection[1], selection[2], selection[3], selection[4], {})
@@ -67,7 +82,6 @@ local function execute_replacement(item)
 		end
 	end
 
-	-- Retrieve target line text to calculate valid byte length for clamping
 	local target_line_content =
 		vim.api.nvim_buf_get_lines(last_active_buf, last_selection[3], last_selection[3] + 1, false)[1]
 	if not target_line_content then
@@ -77,7 +91,6 @@ local function execute_replacement(item)
 	local actual_end_col = math.min(last_selection[4], #target_line_content)
 	local lines = vim.split(item.response, "\n")
 
-	-- Execute text replacement
 	local success, err = pcall(function()
 		vim.api.nvim_buf_set_text(
 			last_active_buf,
@@ -98,7 +111,7 @@ local function execute_replacement(item)
 	end
 end
 
--- Apply the current transformation from history window
+-- Apply current transformation
 local function apply_current_history()
 	if current_view ~= "transform" then
 		print("Ajapopaja: You can only apply transformations, not reviews.")
@@ -106,7 +119,6 @@ local function apply_current_history()
 	end
 
 	local items = history_cache[current_view]
-	-- Defensive check: Index clamping
 	current_index = math.max(1, math.min(current_index, #items))
 	local item = items[current_index]
 
@@ -127,14 +139,13 @@ local function delete_current_entry()
 	local success = vim.fn.AjapopajaDeleteEntry(current_view, current_index)
 	if success then
 		sync_history()
-		-- Recalculate index after deletion
 		current_index = math.max(1, math.min(current_index, #history_cache[current_view]))
 		M.render_history()
 		print("Ajapopaja: Entry deleted.")
 	end
 end
 
--- Clear all history for the current view
+-- Clear all history
 local function clear_entire_history()
 	vim.ui.select({ "Yes", "No" }, {
 		prompt = "Clear all " .. current_view .. " history?",
@@ -161,7 +172,7 @@ function M.ajapopaja_apply_latest()
 	execute_replacement(transforms[#transforms])
 end
 
--- Render history UI in the floating window using Markdown
+-- Render history UI
 function M.render_history()
 	if not buf or not vim.api.nvim_buf_is_valid(buf) then
 		return
@@ -169,7 +180,6 @@ function M.render_history()
 	local items = history_cache[current_view]
 	local content = {}
 
-	-- ARCHITECTURAL FIX: Always clamp the index before rendering to prevent nil indexing
 	if #items > 0 then
 		current_index = math.max(1, math.min(current_index, #items))
 	end
@@ -190,7 +200,6 @@ function M.render_history()
 			"---",
 		}
 
-		-- Logic for conditional fencing: transformations are fenced, reviews are raw markdown
 		if current_view == "transform" then
 			table.insert(content, "```" .. (item.lang or "text"))
 			table.insert(content, item.response)
@@ -221,7 +230,6 @@ end
 
 local function open_window()
 	sync_history()
-	-- Reset or clamp index upon opening
 	local items = history_cache[current_view]
 	current_index = #items > 0 and math.min(current_index, #items) or 1
 
@@ -278,7 +286,6 @@ function M.ajapopaja_transform()
 		return
 	end
 
-	-- Capture the hash of the selection at start
 	last_selection[5] = calculate_range_hash(last_active_buf, last_selection)
 
 	local text_lines = vim.api.nvim_buf_get_text(
@@ -292,6 +299,7 @@ function M.ajapopaja_transform()
 	local lang = get_programming_language()
 	vim.ui.input({ prompt = "Enter transformation prompt: " }, function(input)
 		if input and input ~= "" then
+			M.set_loading(true) -- Signal UI start
 			vim.fn.AjapopajaAgentCall(table.concat(text_lines, "\n"), lang, "transform", input)
 		end
 	end)
@@ -305,7 +313,6 @@ function M.ajapopaja_review()
 		return
 	end
 
-	-- Capture hash for reviews as well, though reviews are read-only
 	last_selection[5] = calculate_range_hash(last_active_buf, last_selection)
 
 	local text_lines = vim.api.nvim_buf_get_text(
@@ -319,6 +326,7 @@ function M.ajapopaja_review()
 	if #text_lines == 0 then
 		return
 	end
+	M.set_loading(true) -- Signal UI start
 	vim.fn.AjapopajaAgentCall(table.concat(text_lines, "\n"), get_programming_language(), "review", "")
 end
 

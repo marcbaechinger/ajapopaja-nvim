@@ -9,6 +9,7 @@ API_BASE_URL = "http://127.0.0.1:8000"
 HISTORY_FILE = os.path.expanduser("~/.cache/ajapopaja_history.json")
 
 # Configuration for different LLM workflows
+# 'chomp' determines if we strip markdown code fences for direct buffer injection
 CALL_TYPES = {
     "transform": {
         "system_instructions": "You are an expert engineer helping developers to improve their code. Your output is ONLY the code transformation requested, with no conversational filler or markdown markers unless explicitly asked.",
@@ -89,7 +90,7 @@ class AjapopajaPlugin(object):
 
     @pynvim.function("AjapopajaClearHistory", sync=True)
     def clear_history(self, args):
-        """Clears all history for a specific view (transform or review)."""
+        """Clears all history for a specific view."""
         try:
             view = args[0]
             if view in self.history:
@@ -107,6 +108,7 @@ class AjapopajaPlugin(object):
             self.vim.command("echo 'Ajapopaja: Agent busy. Please wait.'")
             return
 
+        # Extract arguments from Lua call
         selected_text = args[0] if len(args) > 0 else ""
         lang = args[1] if len(args) > 1 else ""
         call_type = args[2] if len(args) > 2 else "transform"
@@ -120,7 +122,7 @@ class AjapopajaPlugin(object):
         self.agent_in_use = True
         self.vim.command(f'echo "{config["prompt_sent_message"]}"')
 
-        # Schedule the async task
+        # Schedule the async task to prevent UI blocking
         asyncio.create_task(
             self._async_agent_call(
                 selected_text=selected_text,
@@ -134,8 +136,9 @@ class AjapopajaPlugin(object):
     async def _async_agent_call(
         self, selected_text, lang, call_type, user_prompt, config
     ):
-        """Handles the LLM request lifecycle, history saving, and register update."""
+        """Handles the lifecycle of the LLM request and updates Neovim state."""
         try:
+            # 1. Initialize the Agent Session
             agent_uid, _ = await self.agent.create_agent(
                 "vim_agent",
                 config["system_instructions"],
@@ -146,6 +149,7 @@ class AjapopajaPlugin(object):
             if not agent_uid:
                 raise Exception("Failed to create agent session.")
 
+            # 2. Build and send the prompt
             final_prompt = self._build_prompt(
                 user_prompt if user_prompt else config.get("prompt", ""),
                 lang,
@@ -155,9 +159,11 @@ class AjapopajaPlugin(object):
             response = await self.agent.chat(final_prompt)
             reply_text = response.reply
 
+            # 3. Process the response (strip fences if it's a transformation)
             if config.get("chomp"):
                 reply_text = self._strip_code_fence(reply_text)
 
+            # 4. Update internal history
             history_item = {
                 "prompt": user_prompt or config.get("prompt", "Code Review"),
                 "lang": lang,
@@ -165,10 +171,13 @@ class AjapopajaPlugin(object):
             }
             self._save_history(call_type, history_item)
 
+            # 5. Success Callback
             def finalize():
                 self.agent_in_use = False
-                # Update appropriate register (c or r)
+                # Set the register (c or r) with the result
                 self.vim.funcs.setreg(config["register"], reply_text, "v")
+                # Signal Lua to hide loading indicator
+                self.vim.exec_lua("require('ajapopaja_plugin').set_loading(false)")
                 self.vim.command(f'echo "{config["response_received_message"]}"')
 
             self.vim.async_call(finalize)
@@ -176,13 +185,16 @@ class AjapopajaPlugin(object):
         except Exception as e:
             err = e
 
+            # 6. Error Callback
             def on_error():
                 self.agent_in_use = False
+                # Ensure indicator is cleared even on failure
+                self.vim.exec_lua("require('ajapopaja_plugin').set_loading(false)")
                 self.vim.err_write(f"Ajapopaja API Error: {str(err)}\n")
 
             self.vim.async_call(on_error)
         finally:
-            # Clean up server resources
+            # 7. Server-side cleanup
             await self.agent.release(delete_resources=True)
 
     def _build_prompt(self, prompt, lang, selected_text):
@@ -196,7 +208,7 @@ class AjapopajaPlugin(object):
         return "".join(parts)
 
     def _strip_code_fence(self, text):
-        """Removes Markdown code delimiters from LLM responses."""
+        """Removes Markdown code delimiters from LLM responses for clean buffer injection."""
         lines = text.strip().splitlines()
         if not lines:
             return text
