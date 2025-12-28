@@ -1,16 +1,12 @@
 local M = {}
 
--- Internal State Management
 local buf, win
 local last_active_buf = nil
--- last_selection structure: { start_line, start_col, end_line, end_col, original_text_hash }
 local last_selection = nil
 local current_view = "transform"
 local current_index = 1
 local history_cache = { transform = {}, review = {} }
 local is_loading = false
-
--- Model Registry (matching your Ollama environment)
 local available_models = {
 	"gemma3:27b",
 	"mistral-small3.2:24b",
@@ -317,7 +313,8 @@ local function open_window()
 end
 
 -- Transformation Logic
-function M.ajapopaja_transform()
+
+local function transform(prompt)
 	capture_context()
 	if not last_active_buf or not last_selection then
 		print("Ajapopaja: No valid selection found.")
@@ -337,15 +334,24 @@ function M.ajapopaja_transform()
 	)
 	local lang = get_programming_language()
 
+	M.set_loading(true)
+	vim.fn.AjapopajaAgentCall(table.concat(text_lines, "\n"), lang, "transform", prompt)
+end
+
+function M.ajapopaja_transform()
 	vim.ui.input({ prompt = "Enter transformation prompt: " }, function(input)
 		if input and input ~= "" then
-			M.set_loading(true)
-			vim.fn.AjapopajaAgentCall(table.concat(text_lines, "\n"), lang, "transform", input)
+			transform(input)
 		end
 	end)
 end
 
+function M.ajapopaja_implement_function()
+	transform("Implement this function")
+end
+
 -- Review Logic
+
 function M.ajapopaja_review()
 	capture_context()
 	if not last_active_buf or not last_selection then
@@ -374,6 +380,7 @@ end
 -- Plugin Setup
 function M.setup()
 	local opts = { silent = true }
+	vim.keymap.set({ "v" }, "<leader>aji", M.ajapopaja_implement_function, opts)
 	vim.keymap.set({ "n", "v" }, "<leader>ajt", M.ajapopaja_transform, opts)
 	vim.keymap.set({ "n", "v" }, "<leader>ajr", M.ajapopaja_review, opts)
 	vim.keymap.set("n", "<leader>ajw", open_window, opts)
