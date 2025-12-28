@@ -10,7 +10,7 @@ local current_index = 1
 local history_cache = { transform = {}, review = {} }
 local is_loading = false
 
--- Model Registry (populated from your Ollama environment)
+-- Model Registry (matching your Ollama environment)
 local available_models = {
 	"gemma3:27b",
 	"mistral-small3.2:24b",
@@ -40,7 +40,7 @@ local function capture_context()
 	local s_pos = vim.fn.getpos("'<")
 	local e_pos = vim.fn.getpos("'>")
 
-	-- Coordinates are 0-indexed for API compatibility
+	-- Coordinates are 0-indexed for Neovim API compatibility
 	if s_pos[2] > 0 then
 		last_selection = {
 			s_pos[2] - 1, -- start_line
@@ -68,7 +68,7 @@ local function sync_history()
 	history_cache = vim.json.decode(raw_history)
 end
 
--- Signal status change (usually triggered by Python backend)
+-- Signal status change (triggered by Python backend via exec_lua)
 function M.set_loading(state)
 	is_loading = state
 	vim.cmd("redrawstatus")
@@ -93,9 +93,7 @@ local function execute_replacement(item)
 	if last_selection[5] then
 		local current_hash = calculate_range_hash(last_active_buf, last_selection)
 		if current_hash ~= last_selection[5] then
-			vim.api.nvim_err_writeln(
-				"Ajapopaja Security: Buffer changed since transformation started. Aborting to prevent corruption."
-			)
+			vim.api.nvim_err_writeln("Ajapopaja Security: Buffer changed since transformation started. Aborting.")
 			return false
 		end
 	end
@@ -214,7 +212,7 @@ function M.render_history()
 	local items = history_cache[current_view]
 	local content = {}
 
-	-- Defensive Index Clamping
+	-- Defensive Index Clamping to prevent nil access
 	if #items > 0 then
 		current_index = math.max(1, math.min(current_index, #items))
 	end
@@ -236,7 +234,7 @@ function M.render_history()
 			"---",
 		}
 
-		-- Conditional Fencing: Fence code for transforms, raw MD for reviews
+		-- Conditional Fencing: transforms are wrapped in code blocks, reviews are raw MD
 		if current_view == "transform" then
 			table.insert(content, "```" .. (item.lang or "text"))
 			table.insert(content, item.response)
@@ -254,19 +252,15 @@ function M.render_history()
 	vim.api.nvim_buf_set_lines(buf, 0, -1, false, vim.split(table.concat(content, "\n"), "\n"))
 	vim.api.nvim_set_option_value("modifiable", false, { buf = buf })
 
-	-- Update Window Title
-	local title_text = " Ajapopaja: " .. (current_view == "transform" and "Transformation" or "Review") .. " "
-	if #items > 0 then
-		title_text = title_text .. "(" .. current_index .. "/" .. #items .. ") "
-	end
-
+	-- Update Floating Window Title
+	local title_text = " Ajapopaja: " .. current_view .. " (" .. current_index .. "/" .. #items .. ") "
 	vim.api.nvim_win_set_config(win, {
 		title = { { title_text, "WhidHeader" } },
 		title_pos = "center",
 	})
 end
 
--- Logic to open the browsing window
+-- Setup and open the floating window
 local function open_window()
 	sync_history()
 	local items = history_cache[current_view]
@@ -289,6 +283,11 @@ local function open_window()
 		row = math.ceil((screen_h - h) / 2),
 		col = math.ceil((screen_w - w) / 2),
 	})
+
+	-- Window-local options for enhanced readability of reviews
+	vim.api.nvim_set_option_value("wrap", true, { win = win })
+	vim.api.nvim_set_option_value("linebreak", true, { win = win })
+	vim.api.nvim_set_option_value("breakindent", true, { win = win })
 
 	local map_opts = { buffer = buf, silent = true }
 	vim.keymap.set("n", "l", function()
@@ -317,7 +316,7 @@ local function open_window()
 	M.render_history()
 end
 
--- Core Transformation Trigger
+-- Transformation Logic
 function M.ajapopaja_transform()
 	capture_context()
 	if not last_active_buf or not last_selection then
@@ -325,7 +324,7 @@ function M.ajapopaja_transform()
 		return
 	end
 
-	-- Hash current state for future validation
+	-- Compute hash of the selection at start-time
 	last_selection[5] = calculate_range_hash(last_active_buf, last_selection)
 
 	local text_lines = vim.api.nvim_buf_get_text(
@@ -346,7 +345,7 @@ function M.ajapopaja_transform()
 	end)
 end
 
--- Core Review Trigger
+-- Review Logic
 function M.ajapopaja_review()
 	capture_context()
 	if not last_active_buf or not last_selection then
@@ -372,7 +371,7 @@ function M.ajapopaja_review()
 	vim.fn.AjapopajaAgentCall(table.concat(text_lines, "\n"), get_programming_language(), "review", "")
 end
 
--- Plugin Initialization
+-- Plugin Setup
 function M.setup()
 	local opts = { silent = true }
 	vim.keymap.set({ "n", "v" }, "<leader>ajt", M.ajapopaja_transform, opts)

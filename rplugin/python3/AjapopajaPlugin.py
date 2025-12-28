@@ -93,9 +93,27 @@ class AjapopajaPlugin(object):
                 self.history[view].pop(index)
                 self._persist_history()
                 return True
-        except:
-            pass
-        return False
+            else:
+                self.vim.api.nvim_echo(
+                    {"key": "error", "message": "Invalid view or index"},
+                    True,
+                    {"title": "Ajapopaja"},
+                )
+                return False
+        except ValueError:
+            self.vim.api.nvim_echo(
+                {"key": "error", "message": "Index must be a number"},
+                True,
+                {"title": "Ajapopaja"},
+            )
+            return False
+        except Exception as e:
+            self.vim.api.nvim_echo(
+                {"key": "error", "message": f"Unexpected error: {e}"},
+                True,
+                {"title": "Ajapopaja"},
+            )
+            return False
 
     @pynvim.function("AjapopajaClearHistory", sync=True)
     def clear_history(self, args):
@@ -106,9 +124,20 @@ class AjapopajaPlugin(object):
                 self.history[view] = []
                 self._persist_history()
                 return True
-        except:
-            pass
-        return False
+            else:
+                self.vim.api.nvim_echo(
+                    {"key": "error", "message": "View not found"},
+                    True,
+                    {"title": "Ajapopaja"},
+                )
+                return False
+        except Exception as e:
+            self.vim.api.nvim_echo(
+                {"key": "error", "message": f"Unexpected error: {e}"},
+                True,
+                {"title": "Ajapopaja"},
+            )
+            return False
 
     @pynvim.function("AjapopajaAgentCall", sync=False)
     def call_agent(self, args):
