@@ -6,7 +6,7 @@ from agent_client.agent_client import AgentClient
 
 # Configuration and Constants
 API_BASE_URL = "http://127.0.0.1:8000"
-HISTORY_FILE = os.path.expanduser("~/.cache/ajapopaja_history.json")
+HISTORY_FILE = os.path.expanduser("~/.ajapopaja/history.json")
 
 # Configuration for different LLM workflows
 CALL_TYPES = {

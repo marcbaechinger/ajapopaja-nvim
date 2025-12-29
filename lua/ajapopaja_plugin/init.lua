@@ -61,12 +61,6 @@ local function calculate_range_hash(buffer, selection)
 	return vim.fn.sha256(content)
 end
 
--- Refresh history data from the Python remote plugin
-local function sync_history()
-	local raw_history = vim.fn.AjapopajaGetHistory()
-	history_cache = vim.json.decode(raw_history)
-end
-
 -- Signal status change (triggered by Python backend via exec_lua)
 function M.set_loading(state)
 	is_loading = state
@@ -83,6 +77,13 @@ end
 
 -- History managment
 --
+
+-- Refresh history data from the Python remote plugin
+local function sync_history()
+	local raw_history = vim.fn.AjapopajaGetHistory()
+	history_cache = vim.json.decode(raw_history)
+end
+
 -- Execute text replacement with Optimistic Concurrency Control
 local function execute_replacement(item)
 	if not item or not last_active_buf or not last_selection then
@@ -375,7 +376,9 @@ function M.render_history()
 		title_pos = "center",
 	})
 end
+
 -- Transformation Logic
+--
 
 local function transform(prompt)
 	if not last_active_buf or not last_selection then
@@ -400,34 +403,10 @@ local function transform(prompt)
 	vim.fn.AjapopajaAgentCall(table.concat(text_lines, "\n"), lang, "transform", prompt)
 end
 
-function M.ajapopaja_transform()
-	capture_context()
-	create_multi_line_input("Describe the code transformation...", function(lines)
-		local instruction = table.concat(lines, "\n")
-		if instruction ~= "" then
-			transform(instruction)
-		end
-	end)
-end
+-- Review prompt
+--
 
-function M.ajapopaja_add_documentation()
-	capture_context()
-	transform("Add or improve the documentation")
-end
-
-function M.ajapopaja_implement_function()
-	capture_context()
-	transform("Implement this function")
-end
-
-function M.ajapopaja_add_unit_tests()
-	capture_context()
-	transform("Create unit tests to test the functionality thoroughly")
-end
-
--- Review Logic
-
-function M.ajapopaja_review()
+local function ajapopaja_review()
 	capture_context()
 	if not last_active_buf or not last_selection then
 		print("Ajapopaja: No valid selection found.")
@@ -452,6 +431,36 @@ function M.ajapopaja_review()
 	vim.fn.AjapopajaAgentCall(table.concat(text_lines, "\n"), get_programming_language(), "review", "")
 end
 
+-- Keybindings
+--
+
+local function ajapopaja_transform()
+	capture_context()
+	create_multi_line_input("Describe the code transformation...", function(lines)
+		local instruction = table.concat(lines, "\n")
+		if instruction ~= "" then
+			transform(instruction)
+		end
+	end)
+end
+
+local function ajapopaja_add_documentation()
+	capture_context()
+	transform("Add or improve the documentation")
+end
+
+local function ajapopaja_implement_function()
+	capture_context()
+	transform("Implement this function")
+end
+
+local function ajapopaja_add_unit_tests()
+	capture_context()
+	transform("Create unit tests to test the functionality thoroughly")
+end
+
+-- Setup
+--
 function M.setup()
 	local commands = {
 		AjapopajaHistory = open_window,
@@ -470,31 +479,31 @@ function M.setup()
 	vim.keymap.set(
 		{ "v" },
 		"<leader>ad",
-		M.ajapopaja_add_documentation,
+		ajapopaja_add_documentation,
 		{ silent = true, desc = "Ajapopaja: Add or improve documentation" }
 	)
 	vim.keymap.set(
 		{ "v" },
 		"<leader>ai",
-		M.ajapopaja_implement_function,
+		ajapopaja_implement_function,
 		{ silent = true, desc = "Ajapopaja: Implement function" }
 	)
 	vim.keymap.set(
 		{ "v" },
 		"<leader>au",
-		M.ajapopaja_add_unit_tests,
+		ajapopaja_add_unit_tests,
 		{ silent = true, desc = "Ajapopaja: Create unit test" }
 	)
 	vim.keymap.set(
 		{ "v" },
 		"<leader>at",
-		M.ajapopaja_transform,
+		ajapopaja_transform,
 		{ silent = true, desc = "Ajapopaja: Transform selection..." }
 	)
 	vim.keymap.set(
 		{ "n", "v" },
 		"<leader>ar",
-		M.ajapopaja_review,
+		ajapopaja_review,
 		{ silent = true, desc = "Ajapopaja: Review selection" }
 	)
 	vim.keymap.set("n", "<leader>aw", open_window, { desc = "Ajapopaja: Open history window..." })
