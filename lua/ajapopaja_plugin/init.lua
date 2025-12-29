@@ -71,7 +71,7 @@ local function ajapopaja_review()
 
 	state.is_loading = true
 	vim.cmd("redrawstatus")
-	vim.fn.AjapopajaAgentCall(table.concat(text_lines, "\n"), utils.get_programming_language(), "review", "")
+	vim.fn.AjapopajaAgentCall(table.concat(text_lines, "\n"), selection_info, "review", "")
 end
 
 -- Specialized Transformation Presets
@@ -126,8 +126,8 @@ function M.setup()
 		ajapopaja_add_unit_tests,
 		{ silent = true, desc = "Ajapopaja: Create unit tests for selection" }
 	)
-	keymap("v", "<leader>at", ajapopaja_transform, { silent = true, desc = "Ajapopaja: Transform selection" })
-	keymap("v", "<leader>ar", ajapopaja_review, { silent = true, desc = "Ajapopaja: Review" })
+	keymap({ "v", "n" }, "<leader>at", ajapopaja_transform, { silent = true, desc = "Ajapopaja: Transform selection" })
+	keymap({ "v", "n" }, "<leader>ar", ajapopaja_review, { silent = true, desc = "Ajapopaja: Review" })
 
 	keymap("n", "<leader>aw", history.open, { desc = "Ajapopaja: Open history window" })
 	keymap("n", "<leader>am", M.ajapopaja_select_model, { desc = "Ajapopaja: Select LLM Model" })

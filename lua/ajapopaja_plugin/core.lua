@@ -26,10 +26,20 @@ function M.capture_context()
 	vim.api.nvim_feedkeys(esc, "x", true)
 	local s_pos = vim.fn.getpos("'<")
 	local e_pos = vim.fn.getpos("'>")
+	local buf = vim.api.nvim_get_current_buf()
 	if s_pos[2] < 1 then
-		return nil
+		-- capture entire buffer is no selection is applied
+		local lines = vim.api.nvim_buf_line_count(buf)
+		local last_line = lines > 0 and lines - 1 or 0
+		local last_col = lines > 0 and #vim.api.nvim_buf_get_lines(buf, last_line, last_line + 1, false)[1] or 0
+		return create_selection_info(buf, {
+			0, -- start_line
+			0, -- start_col
+			last_line, -- end_line
+			last_col, -- end_col
+		})
 	end
-	return create_selection_info(vim.api.nvim_get_current_buf(), {
+	return create_selection_info(buf, {
 		s_pos[2] - 1, -- start_line
 		s_pos[3] - 1, -- start_col
 		e_pos[2] - 1, -- end_line
