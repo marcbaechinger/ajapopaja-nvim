@@ -40,29 +40,28 @@ function M.ajapopaja_apply_latest()
 end
 
 local function ajapopaja_transform()
-	core.capture_context()
+	local selection_info = core.capture_context()
 	ui.create_multi_line_input("Describe transformation...", function(lines)
 		local prompt = table.concat(lines, "\n")
 		if prompt ~= "" then
-			core.transform(prompt)
+			core.transform(prompt, selection_info)
 		end
 	end)
 end
 
 local function ajapopaja_review()
-	core.capture_context()
-	if not state.last_active_buf or not state.last_selection then
+	local selection_info = core.capture_context()
+	if not selection_info then
 		vim.notify("Ajapopaja: No valid selection found.", vim.log.levels.WARN)
 		return
 	end
 
-	state.last_selection[5] = utils.calculate_range_hash(state.last_active_buf, state.last_selection)
 	local text_lines = vim.api.nvim_buf_get_text(
-		state.last_active_buf,
-		state.last_selection[1],
-		state.last_selection[2],
-		state.last_selection[3],
-		state.last_selection[4],
+		selection_info.buf_id,
+		selection_info.start_row,
+		selection_info.start_col,
+		selection_info.end_row,
+		selection_info.end_col,
 		{}
 	)
 
@@ -77,18 +76,15 @@ end
 
 -- Specialized Transformation Presets
 local function ajapopaja_add_documentation()
-	core.capture_context()
-	core.transform("Add or improve the documentation")
+	core.transform("Add or improve the documentation", core.capture_context())
 end
 
 local function ajapopaja_implement_function()
-	core.capture_context()
-	core.transform("Implement this function")
+	core.transform("Implement this function", core.capture_context())
 end
 
 local function ajapopaja_add_unit_tests()
-	core.capture_context()
-	core.transform("Create unit tests to test the functionality thoroughly")
+	core.transform("Create unit tests to test the functionality thoroughly", core.capture_context())
 end
 
 -- Plugin Setup

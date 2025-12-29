@@ -147,7 +147,7 @@ class AjapopajaPlugin(object):
             return
 
         selected_text = args[0] if len(args) > 0 else ""
-        lang = args[1] if len(args) > 1 else ""
+        selection_info = args[1] if len(args) > 1 else {}
         call_type = args[2] if len(args) > 2 else "transform"
         user_prompt = args[3] if len(args) > 3 else ""
         config = CALL_TYPES[call_type]
@@ -158,7 +158,7 @@ class AjapopajaPlugin(object):
         asyncio.create_task(
             self._async_agent_call(
                 selected_text=selected_text,
-                lang=lang,
+                selection_info=selection_info,
                 call_type=call_type,
                 user_prompt=user_prompt,
                 config=config,
@@ -167,7 +167,7 @@ class AjapopajaPlugin(object):
         )
 
     async def _async_agent_call(
-        self, selected_text, lang, call_type, user_prompt, config, model
+        self, selected_text, selection_info, call_type, user_prompt, config, model
     ):
         """Handles the lifecycle of the LLM request and updates Neovim state."""
         try:
@@ -184,7 +184,7 @@ class AjapopajaPlugin(object):
 
             final_prompt = self._build_prompt(
                 user_prompt if user_prompt else config.get("prompt", ""),
-                lang,
+                selection_info["lang"],
                 selected_text,
             )
 
@@ -197,7 +197,7 @@ class AjapopajaPlugin(object):
             # Store the model name in the history item
             history_item = {
                 "prompt": user_prompt or config.get("prompt", "Code Review"),
-                "lang": lang,
+                "selection_info": selection_info,
                 "response": reply_text,
                 "model": model,
             }

@@ -1,16 +1,5 @@
 local M = {
-	-- Buffer/Selection Context
-	last_active_buf = nil,
-	last_selection = nil, -- [start_line, start_col, end_line, end_col, hash]
 
-	-- History UI State
-	current_view = "transform", -- "transform" or "review"
-	current_index = 1,
-	history_cache = { transform = {}, review = {} },
-
-	-- System State
-	is_loading = false,
-	current_model = "qwen3-coder:30b",
 	available_models = {
 		"qwen3-coder:30b",
 		"gemma3:27b",
@@ -23,6 +12,15 @@ local M = {
 		"qwen3:30b",
 		"gemma3:12b",
 	},
+
+	-- History UI State
+	current_view = "transform", -- "transform" or "review"
+	current_index = 1,
+	history_cache = { transform = {}, review = {} },
+
+	-- System State
+	is_loading = false,
+	current_model = "qwen3-coder:30b",
 }
 
 return M

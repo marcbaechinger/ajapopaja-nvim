@@ -31,7 +31,7 @@ function M.render()
 		table.insert(content, "---")
 
 		if state.current_view == "transform" then
-			table.insert(content, "```" .. (item.lang or "text"))
+			table.insert(content, "```" .. (item.selection_info.lang or "text"))
 			for _, line in ipairs(vim.split(item.response, "\n")) do
 				table.insert(content, line)
 			end
