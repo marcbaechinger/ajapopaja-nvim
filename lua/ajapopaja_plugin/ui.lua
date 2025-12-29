@@ -1,9 +1,15 @@
 local M = {}
 
--- Open a dialog for entering a multiline md prompt
-function M.create_multi_line_input(title, callback)
-	local bufnr = vim.api.nvim_create_buf(false, true)
+local standard_prompts = {
+	"Add or improve documentation",
+	"Complete the missing parts that are missing implementation",
+	"Create a unit test class that tests this functionality thouroughly",
+	"Fix typos",
+}
 
+function M.create_multi_line_input(title, callback)
+	local prev_win = vim.api.nvim_get_current_win()
+	local bufnr = vim.api.nvim_create_buf(false, true)
 	vim.bo[bufnr].filetype = "markdown"
 	vim.bo[bufnr].bufhidden = "wipe"
 
@@ -22,7 +28,6 @@ function M.create_multi_line_input(title, callback)
 	}
 
 	local winnr = vim.api.nvim_open_win(bufnr, true, win_opts)
-
 	vim.wo[winnr].wrap = true
 	vim.wo[winnr].conceallevel = 2
 
@@ -33,20 +38,40 @@ function M.create_multi_line_input(title, callback)
 
 	vim.cmd("startinsert")
 
+	local function close_ui()
+		if vim.api.nvim_win_is_valid(winnr) then
+			vim.api.nvim_win_close(winnr, true)
+		end
+		if vim.api.nvim_win_is_valid(prev_win) then
+			vim.api.nvim_set_current_win(prev_win)
+		end
+	end
+
 	local function submit()
 		local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
-		vim.api.nvim_win_close(winnr, true)
+		close_ui()
 		if callback then
 			callback(lines)
 		end
 	end
 
+	local function get_standard_prompt()
+		M.select("Choose a prompt", standard_prompts, function(selected_prompt)
+			if vim.api.nvim_buf_is_valid(bufnr) then
+				vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, vim.split(selected_prompt, "\n"))
+				if vim.api.nvim_win_is_valid(winnr) then
+					vim.api.nvim_set_current_win(winnr)
+					vim.cmd("startinsert!")
+				end
+			end
+		end)
+	end
+
 	local opts = { buffer = bufnr, silent = true }
 	vim.keymap.set("i", "<C-s>", submit, opts)
 	vim.keymap.set("n", "<CR>", submit, opts)
-	vim.keymap.set("n", "q", function()
-		vim.api.nvim_win_close(winnr, true)
-	end, opts)
+	vim.keymap.set("n", "p", get_standard_prompt, opts)
+	vim.keymap.set("n", "q", close_ui, opts)
 end
 
 ---@param prompt string: The header for the selection UI
@@ -68,15 +93,14 @@ function M.select(prompt, options, callback, current)
 	vim.ui.select(items, {
 		prompt = prompt,
 		format_item = function(item)
-			if item == current then
-				return item .. " (current)"
-			end
-			return item
+			return item == current and (item .. " (current)") or item
 		end,
 	}, function(choice)
-		if choice then
-			callback(choice)
-		end
+		vim.schedule(function()
+			if choice then
+				callback(choice)
+			end
+		end)
 	end)
 end
 
