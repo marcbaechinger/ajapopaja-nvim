@@ -1,100 +1,110 @@
-*ajapopaja.txt* AI-Powered Code Transformation & Review for Neovim
+*ajapopaja.txt* For Neovim version 0.10+      Last change: 2025 Dec 29
 
 ==============================================================================
 AJAPOPAJA                                                          *ajapopaja*
 
-A high-performance Neovim interface for LLMs, featuring asynchronous 
-execution, optimistic concurrency control, and persistent history.
+A sophisticated Neovim interface for LLM-powered code transformations and
+reviews, featuring asynchronous Python RPC execution and history management.
 
-Author:  VIM AI Plugin Distinguished Engineer
-Version: 2025.12
-License: MIT
-
-                                 Reference
-                                 ---------
-        1. Introduction.........................|ajapopaja-intro|
-        2. Commands.............................|ajapopaja-commands|
-        3. Default Mappings.....................|ajapopaja-mappings|
-        4. Features.............................|ajapopaja-features|
-           4.1 Transformations..................|ajapopaja-transform|
-           4.2 History Browser..................|ajapopaja-history|
-        5. Concurrency & Security...............|ajapopaja-security|
-        6. Troubleshooting......................|ajapopaja-trouble|
+                                 Type |gO| to see the table of contents.
 
 ==============================================================================
-1. INTRODUCTION                                             *ajapopaja-intro*
+INTRODUCTION                                             *ajapopaja-intro*
 
-Ajapopaja provides a robust bridge between Neovim and Large Language Models.
-Unlike simple wrappers, it tracks buffer state using SHA256 hashes to ensure 
-that LLM responses are never applied to a buffer that has changed since the 
-request was initiated.
+Ajapopaja provides a bridge between your Neovim buffers and Python-based
+Large Language Model (LLM) APIs. It allows for context-aware refactoring,
+documentation generation, and code review.
 
-==============================================================================
-2. COMMANDS                                             *ajapopaja-commands*
-
-The plugin registers several user commands for command-line access:
-
-:AjapopajaHistory       Open the floating history browser.
-:AjapopajaSelectModel   Open a selection menu for available LLM models.
-:AjapopajaApplyLatest   Immediately apply the most recent transformation.
-
-Note: Commands that operate on code context support range selection.
+Key Features:
+- Asynchronous processing (non-blocking UI).
+- Interactive multi-line prompt windows.
+- Persistent history management of LLM outputs.
+- Syntax-aware operations for Python, JS, Java, Kotlin, Lua, HTML, and CSS.
 
 ==============================================================================
-3. DEFAULT MAPPINGS                                     *ajapopaja-mappings*
+USAGE                                                    *ajapopaja-usage*
 
-Keybindings are initialized via `require('ajapopaja').setup()`.
+Ajapopaja operates primarily on visual selections or the current cursor
+context. 
 
-| Mode | Mapping      | Command / Function                          |
-|------|--------------|--------------------------------------------|
-| v    | <leader>ad   | Add/Improve documentation                  |
-| v    | <leader>ai   | Implement function logic                   |
-| v    | <leader>au   | Create unit tests                          |
-| v    | <leader>at   | Custom transformation prompt               |
-| v    | <leader>ar   | Analyze/Review selection                   |
-| n    | <leader>aw   | Open History Window                        |
-| n    | <leader>am   | Select LLM Model                           |
-| n    | <leader>ap   | Apply latest transformation                |
+Commands:
 
-==============================================================================
-4. FEATURES                                             *ajapopaja-features*
+:AjapopajaHistory                                         *:AjapopajaHistory*
+    Opens the history browser to view and reuse past LLM outputs.
 
-4.1 TRANSFORMATIONS                                   *ajapopaja-transform*
+:AjapopajaSelectModel                                 *:AjapopajaSelectModel*
+    Opens a picker to switch between available LLM models.
 
-Transformations are non-blocking. When triggered:
-1. The selection is hashed.
-2. The UI enters a "loading" state (visible in the statusline).
-3. The LLM processes the request via the Python RPC backend.
-4. Results are stored in the History cache.
-
-4.2 HISTORY BROWSER                                    *ajapopaja-history*
-
-Open the browser with `<leader>aw` or `:AjapopajaHistory`.
-Navigation controls (Normal Mode):
-- [h/l]: Previous/Next history entry.
-- [t/r]: Toggle between "Transformation" and "Review" views.
-- [x]:   Delete the current entry from disk/cache.
-- [C]:   Clear all entries for the active view.
-- [Enter]: Apply transformation to the original buffer coordinates.
+:AjapopajaApplyLatest                                 *:AjapopajaApplyLatest*
+    Automatically applies the most recent code transformation to the buffer.
 
 ==============================================================================
-5. CONCURRENCY & SECURITY                              *ajapopaja-security*
+KEYBINDINGS                                        *ajapopaja-keybindings*
 
-Ajapopaja uses **Optimistic Concurrency Control (OCC)**.
+The following default keybindings are registered upon calling `setup()`.
+Most bindings are prefixed with `<leader>a`.
 
-Because LLMs can take seconds to respond, a user might edit the code while 
-waiting. To prevent corruption, Ajapopaja stores a SHA256 hash of the 
-selected text. Before applying a transformation, it verifies if the current 
-buffer content matches the hash. If a mismatch is detected, the 
-transformation is aborted with a security warning.
+NORMAL & VISUAL MODE ~
+
+If a command exepcts a selection and is called in normal mode, the envire
+buffer is selected.
+
+<leader>at      Open a multi-line input window to describe a custom
+                transformation for the current selection.
+<leader>ar      Perform an LLM code review of the selection.
+<leader>ai      Insert/Replace latest transformation from history (replaces
+                selection).
+
+VISUAL MODE ONLY ~
+
+<leader>ad      Add or improve documentation (docstrings/comments).
+<leader>af      Implement function: Completes the missing implementation 
+                for a function stub or class.
+<leader>au      Generate comprehensive unit tests for the selected logic.
+
+NORMAL MODE ONLY ~
+
+<leader>aw      Open the history manager window.
+<leader>am      Select the active LLM model.
+<leader>ap      Apply the latest transformation from history (replaces text).
 
 ==============================================================================
-6. TROUBLESHOOTING                                      *ajapopaja-trouble*
+CONFIGURATION                                      *ajapopaja-config*
 
-If commands are missing or the history is empty:
-1. Run `:checkhealth ajapopaja` to verify the Python RPC bridge.
-2. Ensure your Python dependencies are installed in your provider's venv.
-3. Run `:UpdateRemotePlugins` if you have modified the Python server code.
+To initialize the plugin, add the following to your `init.lua`:
+
+>lua
+    require('ajapopaja').setup()
+<
+
+Note: The plugin requires a Python RPC host configured. Ensure your Python
+environment has the necessary dependencies installed for the agent.
+
+==============================================================================
+API                                                       *ajapopaja-api*
+
+M.setup()                                                 *ajapopaja.setup()*
+    Initializes commands and keymaps.
+
+M.create_multi_line_input({title}, {callback}) *ajapopaja.create_multi_line_input()*
+    Opens a floating Markdown buffer for prompt entry. Explicitly restores
+    window focus to the calling buffer upon submission or exit.
+
+M.select({prompt}, {options}, {callback}, {current})      *ajapopaja.select()*
+    A wrapper around |vim.ui.select| that ensures the current option is
+    prioritized and the UI event loop is scheduled correctly via 
+    |vim.schedule|.
+
+==============================================================================
+FAQ                                                        *ajapopaja-faq*
+
+Q: How do I change the model?
+A: Use `<leader>am` or `:AjapopajaSelectModel`.
+
+==============================================================================
+AUTHORS                                                *ajapopaja-authors*
+
+VIM AI Plugin Distinguished Engineer
 
 ==============================================================================
 vim:tw=78:ts=8:ft=help:norl:

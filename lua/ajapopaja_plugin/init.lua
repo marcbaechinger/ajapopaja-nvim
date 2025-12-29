@@ -36,6 +36,39 @@ function M.ajapopaja_apply_latest()
 	core.execute_replacement(transforms[#transforms])
 end
 
+local function ajapopaja_insert(history_item)
+	local bufnr = vim.api.nvim_get_current_buf()
+	local mode_info = vim.api.nvim_get_mode()
+	local mode = mode_info.mode
+	local lines = vim.split(history_item.response, "\n")
+
+	if mode:find("v") or mode:find("V") or mode:find("\22") then
+		vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes("<Esc>", true, false, true), "x", false)
+		local s_pos = vim.fn.getpos("'<")
+		local e_pos = vim.fn.getpos("'>")
+		if mode == "V" then
+			vim.api.nvim_buf_set_lines(bufnr, s_pos[2] - 1, e_pos[2], false, lines)
+		else
+			vim.api.nvim_buf_set_text(bufnr, s_pos[2] - 1, s_pos[3] - 1, e_pos[2] - 1, e_pos[3], lines)
+		end
+	else
+		-- Normal mode - insert at cursor position
+		local win = vim.api.nvim_get_current_win()
+		local cursor_pos = vim.api.nvim_win_get_cursor(win)
+		vim.api.nvim_buf_set_text(bufnr, cursor_pos[1], cursor_pos[2], cursor_pos[1], cursor_pos[2], lines)
+	end
+end
+
+function M.ajapopaja_insert_latest()
+	history.sync_history()
+	local transforms = state.history_cache.transform
+	if #transforms == 0 then
+		vim.notify("Ajapopaja: No transformation history found.", vim.log.levels.WARN)
+		return
+	end
+	ajapopaja_insert(transforms[#transforms])
+end
+
 local function ajapopaja_transform()
 	local selection_info = core.capture_context()
 	ui.create_multi_line_input("Describe transformation...", function(lines)
@@ -68,20 +101,21 @@ local function ajapopaja_review()
 
 	state.is_loading = true
 	vim.cmd("redrawstatus")
-	vim.fn.AjapopajaAgentCall(table.concat(text_lines, "\n"), selection_info, "review", "")
+	local success, err =
+		pcall(vim.fn.AjapopajaAgentCall, table.concat(text_lines, "\n"), selection_info, "review", "Review this code")
+	if not success then
+		state.is_loading = false
+		vim.cmd("redrawstatus")
+		vim.notify("Ajapopaja: Error calling agent: " .. tostring(err), vim.log.levels.ERROR)
+	end
 end
 
 -- Specialized Transformation Presets
-local function ajapopaja_add_documentation()
-	core.transform("Add or improve the documentation", core.capture_context())
-end
-
-local function ajapopaja_implement_function()
-	core.transform("Implement this function", core.capture_context())
-end
-
-local function ajapopaja_add_unit_tests()
-	core.transform("Create unit tests to test the functionality thoroughly", core.capture_context())
+local function ajapopaja_select_prompt()
+	local selection = core.capture_context()
+	ui.select("Select a prompt", state.standard_prompts, function(selected_prompt)
+		core.transform(selected_prompt, selection)
+	end, nil)
 end
 
 -- Plugin Setup
@@ -105,26 +139,16 @@ function M.setup()
 	local keymap = vim.keymap.set
 
 	-- Visual Mode Transformations
-	keymap(
-		"v",
-		"<leader>ad",
-		ajapopaja_add_documentation,
-		{ silent = true, desc = "Ajapopaja: Add/Improve documentation for selection" }
-	)
-	keymap(
-		"v",
-		"<leader>ai",
-		ajapopaja_implement_function,
-		{ silent = true, desc = "Ajapopaja: Implement function for selection" }
-	)
-	keymap(
-		"v",
-		"<leader>au",
-		ajapopaja_add_unit_tests,
-		{ silent = true, desc = "Ajapopaja: Create unit tests for selection" }
-	)
+	keymap("v", "<leader>as", ajapopaja_select_prompt, { silent = true, desc = "Ajapopaja: Select a standard prompt" })
+
 	keymap({ "v", "n" }, "<leader>at", ajapopaja_transform, { silent = true, desc = "Ajapopaja: Transform selection" })
 	keymap({ "v", "n" }, "<leader>ar", ajapopaja_review, { silent = true, desc = "Ajapopaja: Review" })
+	keymap(
+		{ "v", "n" },
+		"<leader>ai",
+		M.ajapopaja_insert_latest,
+		{ desc = "Ajapopaja: Insert/replace Latest Transformation" }
+	)
 
 	keymap("n", "<leader>aw", history.open, { desc = "Ajapopaja: Open history window" })
 	keymap("n", "<leader>am", M.ajapopaja_select_model, { desc = "Ajapopaja: Select LLM Model" })

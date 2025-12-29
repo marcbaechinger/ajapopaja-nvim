@@ -1,11 +1,5 @@
 local M = {}
-
-local standard_prompts = {
-	"Add or improve documentation",
-	"Complete the missing parts that are missing implementation",
-	"Create a unit test class that tests this functionality thouroughly",
-	"Fix typos",
-}
+local state = require("ajapopaja_plugin.state")
 
 function M.create_multi_line_input(title, callback)
 	local prev_win = vim.api.nvim_get_current_win()
@@ -56,7 +50,7 @@ function M.create_multi_line_input(title, callback)
 	end
 
 	local function get_standard_prompt()
-		M.select("Choose a prompt", standard_prompts, function(selected_prompt)
+		M.select("Choose a prompt", state.standard_prompts, function(selected_prompt)
 			if vim.api.nvim_buf_is_valid(bufnr) then
 				vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, vim.split(selected_prompt, "\n"))
 				if vim.api.nvim_win_is_valid(winnr) then

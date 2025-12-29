@@ -115,7 +115,13 @@ function M.transform(prompt, selection_info)
 
 	state.is_loading = true
 	vim.cmd("redrawstatus")
-	vim.fn.AjapopajaAgentCall(table.concat(text_lines, "\n"), selection_info, "transform", prompt)
+	local success, err =
+		pcall(vim.fn.AjapopajaAgentCall, table.concat(text_lines, "\n"), selection_info, "transform", prompt)
+	if not success then
+		state.is_loading = false
+		vim.cmd("redrawstatus")
+		vim.notify("Ajapopaja: Error calling agent: " .. tostring(err), vim.log.levels.ERROR)
+	end
 end
 
 return M

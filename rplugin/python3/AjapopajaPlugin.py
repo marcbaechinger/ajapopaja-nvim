@@ -171,7 +171,6 @@ class AjapopajaPlugin(object):
     ):
         """Handles the lifecycle of the LLM request and updates Neovim state."""
         try:
-            # Capture the model used for this specific call
             agent_uid, _ = await self.agent.create_agent(
                 "vim_agent",
                 config["system_instructions"],
@@ -194,7 +193,6 @@ class AjapopajaPlugin(object):
             if config.get("chomp"):
                 reply_text = self._strip_code_fence(reply_text)
 
-            # Store the model name in the history item
             history_item = {
                 "prompt": user_prompt or config.get("prompt", "Code Review"),
                 "selection_info": selection_info,
