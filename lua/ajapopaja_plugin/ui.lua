@@ -49,4 +49,35 @@ function M.create_multi_line_input(title, callback)
 	end, opts)
 end
 
+---@param prompt string: The header for the selection UI
+---@param options table: List of available choices
+---@param callback function: Logic to execute on selection
+---@param current? any: The currently active option (optional)
+function M.select(prompt, options, callback, current)
+	local items = vim.deepcopy(options)
+	if current then
+		for i, val in ipairs(items) do
+			if val == current then
+				table.remove(items, i)
+				table.insert(items, 1, val)
+				break
+			end
+		end
+	end
+
+	vim.ui.select(items, {
+		prompt = prompt,
+		format_item = function(item)
+			if item == current then
+				return item .. " (current)"
+			end
+			return item
+		end,
+	}, function(choice)
+		if choice then
+			callback(choice)
+		end
+	end)
+end
+
 return M

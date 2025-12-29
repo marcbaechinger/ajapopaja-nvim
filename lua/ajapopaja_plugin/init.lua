@@ -2,7 +2,6 @@ local state = require("ajapopaja_plugin.state")
 local core = require("ajapopaja_plugin.core")
 local history = require("ajapopaja_plugin.history")
 local ui = require("ajapopaja_plugin.ui")
-local utils = require("ajapopaja_plugin.utils")
 
 local M = {}
 
@@ -21,12 +20,10 @@ end
 -- These encapsulate the interaction logic for user-facing commands
 
 function M.ajapopaja_select_model()
-	vim.ui.select(state.available_models, { prompt = "Select LLM Model:" }, function(choice)
-		if choice then
-			vim.fn.AjapopajaSetModel(choice)
-			state.current_model = choice
-		end
-	end)
+	ui.select("Selec the LLM to use", state.available_models, function(choice)
+		vim.fn.AjapopajaSetModel(choice)
+		state.current_model = choice
+	end, state.current_model)
 end
 
 function M.ajapopaja_apply_latest()
