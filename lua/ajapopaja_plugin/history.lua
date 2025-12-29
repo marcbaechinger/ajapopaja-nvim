@@ -61,6 +61,7 @@ function M.open()
 
 	buf = vim.api.nvim_create_buf(false, true)
 	vim.api.nvim_set_option_value("filetype", "markdown", { buf = buf })
+	vim.api.nvim_set_option_value("readonly", true, { buf = buf })
 
 	local w, h = math.ceil(vim.o.columns * 0.8), math.ceil(vim.o.lines * 0.8)
 	win = vim.api.nvim_open_win(buf, true, {
@@ -72,6 +73,10 @@ function M.open()
 		row = math.ceil((vim.o.lines - h) / 2),
 		col = math.ceil((vim.o.columns - w) / 2),
 	})
+	-- Enable text wrapping and visual improvements for the Markdown buffer
+	vim.api.nvim_set_option_value("wrap", true, { win = win })
+	vim.api.nvim_set_option_value("linebreak", true, { win = win })
+	vim.api.nvim_set_option_value("breakindent", true, { win = win })
 
 	local map_opts = { buffer = buf, silent = true }
 	vim.keymap.set("n", "l", function()
