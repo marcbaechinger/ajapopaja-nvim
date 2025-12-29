@@ -38,11 +38,10 @@ end
 
 local function ajapopaja_insert(history_item)
 	local bufnr = vim.api.nvim_get_current_buf()
-	local mode_info = vim.api.nvim_get_mode()
-	local mode = mode_info.mode
+	local mode = vim.api.nvim_get_mode().mode
 	local lines = vim.split(history_item.response, "\n")
 
-	if mode:find("v") or mode:find("V") or mode:find("\22") then
+	if mode == "v" or mode == "V" or mode == "\22" then
 		vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes("<Esc>", true, false, true), "x", false)
 		local s_pos = vim.fn.getpos("'<")
 		local e_pos = vim.fn.getpos("'>")
@@ -52,10 +51,10 @@ local function ajapopaja_insert(history_item)
 			vim.api.nvim_buf_set_text(bufnr, s_pos[2] - 1, s_pos[3] - 1, e_pos[2] - 1, e_pos[3], lines)
 		end
 	else
-		-- Normal mode - insert at cursor position
-		local win = vim.api.nvim_get_current_win()
-		local cursor_pos = vim.api.nvim_win_get_cursor(win)
-		vim.api.nvim_buf_set_text(bufnr, cursor_pos[1], cursor_pos[2], cursor_pos[1], cursor_pos[2], lines)
+		local type = #lines > 1 and "l" or "c"
+		local after = false
+		local follow = false
+		vim.api.nvim_put(lines, type, after, follow)
 	end
 end
 
