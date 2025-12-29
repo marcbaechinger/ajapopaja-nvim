@@ -37,7 +37,6 @@ The plugin registers several user commands for command-line access:
 :AjapopajaHistory       Open the floating history browser.
 :AjapopajaSelectModel   Open a selection menu for available LLM models.
 :AjapopajaApplyLatest   Immediately apply the most recent transformation.
-:AjapopajaDocs          Trigger a "Add/Improve Documentation" request.
 
 Note: Commands that operate on code context support range selection.
 
@@ -52,7 +51,7 @@ Keybindings are initialized via `require('ajapopaja').setup()`.
 | v    | <leader>ai   | Implement function logic                   |
 | v    | <leader>au   | Create unit tests                          |
 | v    | <leader>at   | Custom transformation prompt               |
-| n/v  | <leader>ar   | Analyze/Review selection                   |
+| v    | <leader>ar   | Analyze/Review selection                   |
 | n    | <leader>aw   | Open History Window                        |
 | n    | <leader>am   | Select LLM Model                           |
 | n    | <leader>ap   | Apply latest transformation                |

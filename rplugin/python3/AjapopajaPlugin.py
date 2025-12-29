@@ -150,8 +150,9 @@ class AjapopajaPlugin(object):
         lang = args[1] if len(args) > 1 else ""
         call_type = args[2] if len(args) > 2 else "transform"
         user_prompt = args[3] if len(args) > 3 else ""
-
         config = CALL_TYPES[call_type]
+        model = self.current_model
+
         self.agent_in_use = True
 
         asyncio.create_task(
@@ -161,22 +162,21 @@ class AjapopajaPlugin(object):
                 call_type=call_type,
                 user_prompt=user_prompt,
                 config=config,
+                model=model,
             )
         )
 
     async def _async_agent_call(
-        self, selected_text, lang, call_type, user_prompt, config
+        self, selected_text, lang, call_type, user_prompt, config, model
     ):
         """Handles the lifecycle of the LLM request and updates Neovim state."""
         try:
             # Capture the model used for this specific call
-            model_used = self.current_model
-
             agent_uid, _ = await self.agent.create_agent(
                 "vim_agent",
                 config["system_instructions"],
                 agent_type="plain",
-                model=model_used,
+                model=model,
             )
 
             if not agent_uid:
@@ -199,7 +199,7 @@ class AjapopajaPlugin(object):
                 "prompt": user_prompt or config.get("prompt", "Code Review"),
                 "lang": lang,
                 "response": reply_text,
-                "model": model_used,
+                "model": model,
             }
             self._save_history(call_type, history_item)
 
