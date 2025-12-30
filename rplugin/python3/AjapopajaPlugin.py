@@ -28,20 +28,18 @@ CALL_TYPES = {
 }
 
 
-@pynvim.plugin
-class AjapopajaPlugin(object):
-    def __init__(self, vim):
-        self.vim = vim
-        self.agent = AgentClient(API_BASE_URL)
-        self.agent_in_use = False
+class HistoryManager:
+    """Manages loading and persisting interaction history."""
+
+    def __init__(self, history_file):
+        self.history_file = history_file
         self.history = self._load_history()
-        self.current_model = "qwen3-coder:30b"
 
     def _load_history(self):
         """Loads interaction history from the local cache file."""
-        if os.path.exists(HISTORY_FILE):
+        if os.path.exists(self.history_file):
             try:
-                with open(HISTORY_FILE, "r") as f:
+                with open(self.history_file, "r") as f:
                     return json.load(f)
             except (json.JSONDecodeError, IOError):
                 pass
@@ -50,28 +48,74 @@ class AjapopajaPlugin(object):
     def _persist_history(self):
         """Helper to save the current history state to disk."""
         try:
-            os.makedirs(os.path.dirname(HISTORY_FILE), exist_ok=True)
-            with open(HISTORY_FILE, "w") as f:
+            os.makedirs(os.path.dirname(self.history_file), exist_ok=True)
+            with open(self.history_file, "w") as f:
                 json.dump(self.history, f)
         except IOError as e:
-            err = e
-            self.vim.async_call(
-                lambda: self.vim.err_write(f"Ajapopaja History Error: {str(err)}\n")
-            )
+            raise IOError(f"Failed to write history file '{self.history_file}': {e}")
+        except TypeError as e:
+            raise TypeError(f"Failed to serialize history data: {e}")
+        return None
 
-    def _save_history(self, call_type, item):
+    def save_history(self, call_type, item):
         """Persists a new interaction and trims to the last 50 entries."""
         if call_type not in self.history:
             self.history[call_type] = []
 
         self.history[call_type].append(item)
         self.history[call_type] = self.history[call_type][-50:]
-        self._persist_history()
+        try:
+            self._persist_history()
+        except (IOError, TypeError) as e:
+            return e
+        return None
+
+    def get_history(self):
+        """Returns current history."""
+        return self.history
+
+
+class PromptBuilder:
+    """Handles building structured prompts."""
+
+    @staticmethod
+    def build_prompt(prompt, lang, selected_text):
+        """Constructs a structured prompt with Markdown code blocks."""
+        parts = []
+        if prompt:
+            parts.append(prompt)
+        if selected_text:
+            lang_label = lang if lang else ""
+            parts.append(f"\n\n```{lang_label}\n{selected_text}\n```")
+        return "".join(parts)
+
+    @staticmethod
+    def strip_code_fence(text):
+        """Removes Markdown code delimiters from LLM responses."""
+        lines = text.strip().splitlines()
+        if not lines:
+            return text
+        if lines and lines[0].startswith("```"):
+            lines.pop(0)
+        if lines and lines[-1].startswith("```"):
+            lines.pop(-1)
+        return "\n".join(lines).strip()
+
+
+@pynvim.plugin
+class AjapopajaPlugin(object):
+    def __init__(self, vim):
+        self.vim = vim
+        self.agent = AgentClient(API_BASE_URL)
+        self.agent_in_use = False
+        self.history_manager = HistoryManager(HISTORY_FILE)
+        self.current_model = "qwen3-coder:30b"
+        self.prompt_builder = PromptBuilder()
 
     @pynvim.function("AjapopajaGetHistory", sync=True)
     def get_history(self, args):
         """Synchronous retrieval of history for the Lua UI."""
-        return json.dumps(self.history)
+        return json.dumps(self.history_manager.get_history())
 
     @pynvim.function("AjapopajaSetModel", sync=True)
     def set_model(self, args):
@@ -89,54 +133,60 @@ class AjapopajaPlugin(object):
             view = args[0]
             index = int(args[1]) - 1
 
-            if view in self.history and 0 <= index < len(self.history[view]):
-                self.history[view].pop(index)
-                self._persist_history()
-                return True
-            else:
-                self.vim.api.nvim_echo(
-                    {"key": "error", "message": "Invalid view or index"},
-                    True,
-                    {"title": "Ajapopaja"},
-                )
+            if view not in self.history_manager.history:
+                self._show_error("Invalid view")
                 return False
+
+            view_history = self.history_manager.history[view]
+            if not (0 <= index < len(view_history)):
+                self._show_error("Invalid index")
+                return False
+
+            view_history.pop(index)
+            return self._persist_and_handle_error()
         except ValueError:
-            self.vim.api.nvim_echo(
-                {"key": "error", "message": "Index must be a number"},
-                True,
-                {"title": "Ajapopaja"},
-            )
+            self._show_error("Index must be a number")
             return False
         except Exception as e:
-            self.vim.api.nvim_echo(
-                {"key": "error", "message": f"Unexpected error: {e}"},
-                True,
-                {"title": "Ajapopaja"},
-            )
+            self._show_error(f"Unexpected error: {e}")
             return False
+
+    def _persist_and_handle_error(self):
+        """Persist history and handle any errors."""
+        try:
+            error = self.history_manager._persist_history()
+            if error:
+                self.vim.async_call(
+                    lambda: self.vim.err_write(
+                        f"Ajapopaja History Error: {str(error)}\n"
+                    )
+                )
+            return True
+        except Exception as e:
+            self._show_error(f"Error when deleting history item {e}")
+            return False
+
+    def _show_error(self, message):
+        """Display an error message to the user."""
+        self.vim.api.nvim_echo(
+            {"key": "error", "message": message},
+            True,
+            {"title": "Ajapopaja"},
+        )
 
     @pynvim.function("AjapopajaClearHistory", sync=True)
     def clear_history(self, args):
         """Clears all history for a specific view."""
         try:
             view = args[0]
-            if view in self.history:
-                self.history[view] = []
-                self._persist_history()
-                return True
+            if view in self.history_manager.history:
+                self.history_manager.history[view] = []
+                return self._persist_and_handle_error()
             else:
-                self.vim.api.nvim_echo(
-                    {"key": "error", "message": "View not found"},
-                    True,
-                    {"title": "Ajapopaja"},
-                )
+                self._show_error("View not found")
                 return False
         except Exception as e:
-            self.vim.api.nvim_echo(
-                {"key": "error", "message": f"Unexpected error: {e}"},
-                True,
-                {"title": "Ajapopaja"},
-            )
+            self._show_error(f"Unexpected error: {e}")
             return False
 
     @pynvim.function("AjapopajaAgentCall", sync=False)
@@ -181,7 +231,7 @@ class AjapopajaPlugin(object):
             if not agent_uid:
                 raise Exception("Failed to create agent session.")
 
-            final_prompt = self._build_prompt(
+            final_prompt = self.prompt_builder.build_prompt(
                 user_prompt if user_prompt else config.get("prompt", ""),
                 selection_info["lang"],
                 selected_text,
@@ -191,7 +241,7 @@ class AjapopajaPlugin(object):
             reply_text = response.reply
 
             if config.get("chomp"):
-                reply_text = self._strip_code_fence(reply_text)
+                reply_text = self.prompt_builder.strip_code_fence(reply_text)
 
             history_item = {
                 "prompt": user_prompt or config.get("prompt", "Code Review"),
@@ -199,7 +249,13 @@ class AjapopajaPlugin(object):
                 "response": reply_text,
                 "model": model,
             }
-            self._save_history(call_type, history_item)
+            error = self.history_manager.save_history(call_type, history_item)
+            if error:
+                self.vim.async_call(
+                    lambda: self.vim.err_write(
+                        f"Ajapopaja History Error: {str(error)}\n"
+                    )
+                )
 
             def finalize():
                 self.agent_in_use = False
@@ -219,27 +275,8 @@ class AjapopajaPlugin(object):
 
             self.vim.async_call(on_error)
         finally:
-            await self.agent.release(delete_resources=True)
-
-    def _build_prompt(self, prompt, lang, selected_text):
-        """Constructs a structured prompt with Markdown code blocks."""
-        parts = []
-        if prompt:
-            parts.append(prompt)
-        if selected_text:
-            lang_label = lang if lang else ""
-            parts.append(f"\n\n```{lang_label}\n{selected_text}\n```")
-        return "".join(parts)
-
-    def _strip_code_fence(self, text):
-        """Removes Markdown code delimiters from LLM responses."""
-        lines = text.strip().splitlines()
-        if not lines:
-            return text
-        # Remove starting fence (e.g., ```python)
-        if lines and lines[0].startswith("```"):
-            lines.pop(0)
-        # Remove ending fence (e.g., ```)
-        if lines and lines[-1].startswith("```"):
-            lines.pop(-1)
-        return "\n".join(lines).strip()
+            # Ensure agent is properly cleaned up
+            try:
+                await self.agent.release()
+            except:
+                pass

@@ -58,4 +58,13 @@ function M.get_bufnr_from_path(path, create_if_missing)
 	return nil
 end
 
+function M.get_entire_buffer_range(buf)
+	local line_count = vim.api.nvim_buf_line_count(buf)
+	local start_line = 0
+	local start_col = 0
+	local end_line = line_count > 0 and line_count - 1 or 0
+	local end_col = line_count > 0 and #vim.api.nvim_buf_get_lines(buf, end_line, end_line + 1, false)[1] or 0
+	return start_line, start_col, end_line, end_col
+end
+
 return M

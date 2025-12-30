@@ -2,6 +2,10 @@ local state = require("ajapopaja_plugin.state")
 local utils = require("ajapopaja_plugin.utils")
 local M = {}
 
+local visual_char = "v"
+local visual_line = "V"
+local visual_block = "\22"
+
 local function get_text_lines(selection_info)
 	return vim.api.nvim_buf_get_text(
 		selection_info.buf_id,
@@ -32,7 +36,6 @@ local function create_selection_info(bufnr, selection)
 	if lines and lines[1] then
 		indentation = #lines[1]:match("^%s*")
 	end
-	vim.notify("aindentation='" .. indentation .. "'")
 	selection_info.indentation = indentation
 	selection_info.hash = utils.calculate_range_hash(selection_info)
 	return selection_info
@@ -43,16 +46,16 @@ function M.insert_to_buffer(history_item)
 	local mode = vim.api.nvim_get_mode().mode
 	local lines = vim.split(history_item.response, "\n")
 
-	if mode == "v" or mode == "V" or mode == "\22" then
+	if mode == visual_char or mode == visual_line or mode == visual_block then
 		vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes("<Esc>", true, false, true), "x", false)
 
-		local s_pos = vim.fn.getpos("'<")
-		local e_pos = vim.fn.getpos("'>")
+		local start_position = vim.fn.getpos("'<")
+		local end_position = vim.fn.getpos("'>")
 
-		local start_row = s_pos[2] - 1
-		local start_col = s_pos[3] - 1
-		local end_row = e_pos[2] - 1
-		local end_col = e_pos[3]
+		local start_row = start_position[2] - 1
+		local start_col = start_position[3] - 1
+		local end_row = end_position[2] - 1
+		local end_col = end_position[3]
 
 		local last_line_content = vim.api.nvim_buf_get_lines(bufnr, end_row, end_row + 1, false)[1] or ""
 		local max_col = #last_line_content
@@ -61,16 +64,17 @@ function M.insert_to_buffer(history_item)
 			end_col = max_col
 		end
 
-		if mode == "V" then
+		if mode == visual_line then
 			local prefix = string.rep(" ", history_item.selection_info.indentation)
 			if #lines > 0 then
 				lines[1] = prefix .. lines[1]
 			end
-			vim.api.nvim_buf_set_lines(bufnr, start_row, e_pos[2], false, lines)
+			vim.api.nvim_buf_set_lines(bufnr, start_row, end_position[2], false, lines)
 		else
 			vim.api.nvim_buf_set_text(bufnr, start_row, start_col, end_row, end_col, lines)
 		end
 	else
+		-- non visual mode. Insert at cursor position
 		local type = #lines > 1 and "l" or "c"
 		local after = false
 		local follow = false
@@ -78,35 +82,49 @@ function M.insert_to_buffer(history_item)
 	end
 end
 
--- Capture selection coordinates
+-- Capture selection coordinates for the entire buffer
+
 function M.capture_context()
 	local mode = vim.api.nvim_get_mode().mode
 	if mode ~= "V" and mode ~= "n" then
-		vim.notify("Only line selection mode supported (V-line)", vim.log.levels.ERROR)
+		vim.notify("Only V-line or normal mode supported", vim.log.levels.WARN)
 		return nil
 	end
-	local esc = vim.api.nvim_replace_termcodes("<Esc>", true, false, true)
-	vim.api.nvim_feedkeys(esc, "x", true)
-	local s_pos = vim.fn.getpos("'<")
-	local e_pos = vim.fn.getpos("'>")
+
 	local buf = vim.api.nvim_get_current_buf()
-	local line_count = vim.api.nvim_buf_line_count(buf)
-	if s_pos[2] < 1 then
-		-- capture entire buffer is no selection is applied
-		local last_line = line_count > 0 and line_count - 1 or 0
-		local last_col = line_count > 0 and #vim.api.nvim_buf_get_lines(buf, last_line, last_line + 1, false)[1] or 0
+	if mode == "n" then
+		-- Return entire buffer selection in normal mode
+		local start_line, start_col, end_line, end_col = utils.get_entire_buffer_range(buf)
 		return create_selection_info(buf, {
-			0, -- start_line
-			0, -- start_col
-			last_line, -- end_line
-			last_col, -- end_col
+			start_line,
+			start_col,
+			end_line,
+			end_col,
 		})
 	end
+
+	-- Capture the selection
+	local esc = vim.api.nvim_replace_termcodes("<Esc>", true, false, true)
+	vim.api.nvim_feedkeys(esc, "x", true)
+
+	local s_pos = vim.fn.getpos("'<")
+	local e_pos = vim.fn.getpos("'>")
+
+	local start_line, start_col, end_line, end_col
+	if s_pos[2] < 1 then
+		start_line, start_col, end_line, end_col = utils.get_entire_buffer_range(buf)
+	else
+		start_line = s_pos[2] - 1
+		start_col = s_pos[3] - 1
+		end_line = e_pos[2] - 1
+		end_col = e_pos[3]
+	end
+
 	return create_selection_info(buf, {
-		s_pos[2] - 1, -- start_line
-		s_pos[3] - 1, -- start_col
-		e_pos[2] - 1, -- end_line
-		e_pos[3], -- end_col
+		start_line,
+		start_col,
+		end_line,
+		end_col,
 	})
 end
 
