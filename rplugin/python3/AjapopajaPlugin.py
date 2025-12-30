@@ -1,4 +1,5 @@
 import pynvim
+import textwrap
 import json
 import os
 import asyncio
@@ -85,6 +86,7 @@ class PromptBuilder:
         if prompt:
             parts.append(prompt)
         if selected_text:
+            selected_text = textwrap.dedent(selected_text)
             lang_label = lang if lang else ""
             parts.append(f"\n\n```{lang_label}\n{selected_text}\n```")
         return "".join(parts)
@@ -93,13 +95,14 @@ class PromptBuilder:
     def strip_code_fence(text):
         """Removes Markdown code delimiters from LLM responses."""
         lines = text.strip().splitlines()
-        if not lines:
-            return text
-        if lines and lines[0].startswith("```"):
-            lines.pop(0)
-        if lines and lines[-1].startswith("```"):
-            lines.pop(-1)
-        return "\n".join(lines).strip()
+        result = []
+        inside_code = False
+        for line in lines:
+            if line.startswith("```"):
+                inside_code = not inside_code
+            elif inside_code:
+                result.append(line)
+        return "\n".join(result)
 
 
 @pynvim.plugin
@@ -215,6 +218,7 @@ class AjapopajaPlugin(object):
                 model=model,
             )
         )
+        self.vim.command(f'echo "{config["prompt_sent_message"]}"')
 
     async def _async_agent_call(
         self, selected_text, selection_info, call_type, user_prompt, config, model
@@ -241,7 +245,9 @@ class AjapopajaPlugin(object):
             reply_text = response.reply
 
             if config.get("chomp"):
-                reply_text = self.prompt_builder.strip_code_fence(reply_text)
+                reply_text = textwrap.dedent(
+                    self.prompt_builder.strip_code_fence(reply_text)
+                )
 
             history_item = {
                 "prompt": user_prompt or config.get("prompt", "Code Review"),
@@ -266,9 +272,8 @@ class AjapopajaPlugin(object):
             self.vim.async_call(finalize)
 
         except Exception as e:
-            err = e
 
-            def on_error():
+            def on_error(err=str(e)):
                 self.agent_in_use = False
                 self.vim.exec_lua("require('ajapopaja_plugin').set_loading(false)")
                 self.vim.err_write(f"Ajapopaja API Error: {str(err)}\n")
@@ -278,5 +283,5 @@ class AjapopajaPlugin(object):
             # Ensure agent is properly cleaned up
             try:
                 await self.agent.release()
-            except:
-                pass
+            except Exception as e:
+                self._show_error(f"Releasing the agent failed: {e}")

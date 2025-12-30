@@ -32,19 +32,31 @@ local function create_selection_info(bufnr, selection)
 		lang = utils.get_programming_language(),
 	}
 	local lines = get_text_lines(selection_info)
-	local indentation = 0
-	if lines and lines[1] then
-		indentation = #lines[1]:match("^%s*")
+	local indentation = math.huge
+	for _, line in ipairs(lines) do
+		local leading_whitespace_count = #line:match("^%s*")
+		if leading_whitespace_count < indentation then
+			indentation = leading_whitespace_count
+		end
 	end
 	selection_info.indentation = indentation
 	selection_info.hash = utils.calculate_range_hash(selection_info)
 	return selection_info
 end
 
+local function get_padded_lines(history_item)
+	local lines = vim.split(history_item.response, "\n")
+	local prefix = string.rep(" ", history_item.selection_info.indentation)
+	for i, line in ipairs(lines) do
+		lines[i] = prefix .. line
+	end
+	return lines
+end
+
 function M.insert_to_buffer(history_item)
 	local bufnr = vim.api.nvim_get_current_buf()
 	local mode = vim.api.nvim_get_mode().mode
-	local lines = vim.split(history_item.response, "\n")
+	local lines = get_padded_lines(history_item)
 
 	if mode == visual_char or mode == visual_line or mode == visual_block then
 		vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes("<Esc>", true, false, true), "x", false)
@@ -65,10 +77,6 @@ function M.insert_to_buffer(history_item)
 		end
 
 		if mode == visual_line then
-			local prefix = string.rep(" ", history_item.selection_info.indentation)
-			if #lines > 0 then
-				lines[1] = prefix .. lines[1]
-			end
 			vim.api.nvim_buf_set_lines(bufnr, start_row, end_position[2], false, lines)
 		else
 			vim.api.nvim_buf_set_text(bufnr, start_row, start_col, end_row, end_col, lines)
@@ -156,11 +164,7 @@ function M.replace_in_buffer(item)
 	end
 
 	local actual_end_col = math.min(item.selection_info.end_col, #target_line_content)
-	local lines = vim.split(item.response, "\n")
-	local prefix = string.rep(" ", item.selection_info.indentation)
-	if #lines > 0 then
-		lines[1] = prefix .. lines[1]
-	end
+	local lines = get_padded_lines(item)
 
 	local success, err = pcall(function()
 		vim.api.nvim_buf_set_text(
