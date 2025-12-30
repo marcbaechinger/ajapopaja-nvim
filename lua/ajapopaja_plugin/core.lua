@@ -2,6 +2,17 @@ local state = require("ajapopaja_plugin.state")
 local utils = require("ajapopaja_plugin.utils")
 local M = {}
 
+local function get_text_lines(selection_info)
+	return vim.api.nvim_buf_get_text(
+		selection_info.buf_id,
+		selection_info.start_row,
+		selection_info.start_col,
+		selection_info.end_row,
+		selection_info.end_col,
+		{}
+	)
+end
+
 local function create_selection_info(bufnr, selection)
 	if not bufnr or not selection then
 		return nil
@@ -16,22 +27,74 @@ local function create_selection_info(bufnr, selection)
 		end_col = selection[4],
 		lang = utils.get_programming_language(),
 	}
+	local lines = get_text_lines(selection_info)
+	local indentation = 0
+	if lines and lines[1] then
+		indentation = #lines[1]:match("^%s*")
+	end
+	vim.notify("aindentation='" .. indentation .. "'")
+	selection_info.indentation = indentation
 	selection_info.hash = utils.calculate_range_hash(selection_info)
 	return selection_info
 end
 
+function M.insert_to_buffer(history_item)
+	local bufnr = vim.api.nvim_get_current_buf()
+	local mode = vim.api.nvim_get_mode().mode
+	local lines = vim.split(history_item.response, "\n")
+
+	if mode == "v" or mode == "V" or mode == "\22" then
+		vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes("<Esc>", true, false, true), "x", false)
+
+		local s_pos = vim.fn.getpos("'<")
+		local e_pos = vim.fn.getpos("'>")
+
+		local start_row = s_pos[2] - 1
+		local start_col = s_pos[3] - 1
+		local end_row = e_pos[2] - 1
+		local end_col = e_pos[3]
+
+		local last_line_content = vim.api.nvim_buf_get_lines(bufnr, end_row, end_row + 1, false)[1] or ""
+		local max_col = #last_line_content
+
+		if end_col > max_col then
+			end_col = max_col
+		end
+
+		if mode == "V" then
+			local prefix = string.rep(" ", history_item.selection_info.indentation)
+			if #lines > 0 then
+				lines[1] = prefix .. lines[1]
+			end
+			vim.api.nvim_buf_set_lines(bufnr, start_row, e_pos[2], false, lines)
+		else
+			vim.api.nvim_buf_set_text(bufnr, start_row, start_col, end_row, end_col, lines)
+		end
+	else
+		local type = #lines > 1 and "l" or "c"
+		local after = false
+		local follow = false
+		vim.api.nvim_put(lines, type, after, follow)
+	end
+end
+
 -- Capture selection coordinates
 function M.capture_context()
+	local mode = vim.api.nvim_get_mode().mode
+	if mode ~= "V" then
+		vim.notify("Only line selection mode supported (V-line)", vim.log.levels.ERROR)
+		return nil
+	end
 	local esc = vim.api.nvim_replace_termcodes("<Esc>", true, false, true)
 	vim.api.nvim_feedkeys(esc, "x", true)
 	local s_pos = vim.fn.getpos("'<")
 	local e_pos = vim.fn.getpos("'>")
 	local buf = vim.api.nvim_get_current_buf()
+	local line_count = vim.api.nvim_buf_line_count(buf)
 	if s_pos[2] < 1 then
 		-- capture entire buffer is no selection is applied
-		local lines = vim.api.nvim_buf_line_count(buf)
-		local last_line = lines > 0 and lines - 1 or 0
-		local last_col = lines > 0 and #vim.api.nvim_buf_get_lines(buf, last_line, last_line + 1, false)[1] or 0
+		local last_line = line_count > 0 and line_count - 1 or 0
+		local last_col = line_count > 0 and #vim.api.nvim_buf_get_lines(buf, last_line, last_line + 1, false)[1] or 0
 		return create_selection_info(buf, {
 			0, -- start_line
 			0, -- start_col
@@ -48,7 +111,7 @@ function M.capture_context()
 end
 
 -- Replacement Logic with Safety Check
-function M.execute_replacement(item)
+function M.replace_in_buffer(item)
 	if not item then
 		vim.notify("Ajapopaja: No valid context to apply.", vim.log.levels.WARN)
 		return false
@@ -58,7 +121,7 @@ function M.execute_replacement(item)
 	if item.selection_info.hash then
 		local current_hash = utils.calculate_range_hash(item.selection_info)
 		if current_hash ~= item.selection_info.hash then
-			vim.api.nvim_err_writeln("Ajapopaja Security: Buffer changed since LLM request. Aborting.")
+			vim.notify("Ajapopaja Security: Buffer changed since LLM request. Aborting.", vim.log.levels.ERROR)
 			return false
 		end
 	end
@@ -76,6 +139,10 @@ function M.execute_replacement(item)
 
 	local actual_end_col = math.min(item.selection_info.end_col, #target_line_content)
 	local lines = vim.split(item.response, "\n")
+	local prefix = string.rep(" ", item.selection_info.indentation)
+	if #lines > 0 then
+		lines[1] = prefix .. lines[1]
+	end
 
 	local success, err = pcall(function()
 		vim.api.nvim_buf_set_text(

@@ -33,29 +33,7 @@ function M.ajapopaja_apply_latest()
 		vim.notify("Ajapopaja: No transformation history found.", vim.log.levels.WARN)
 		return
 	end
-	core.execute_replacement(transforms[#transforms])
-end
-
-local function ajapopaja_insert(history_item)
-	local bufnr = vim.api.nvim_get_current_buf()
-	local mode = vim.api.nvim_get_mode().mode
-	local lines = vim.split(history_item.response, "\n")
-
-	if mode == "v" or mode == "V" or mode == "\22" then
-		vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes("<Esc>", true, false, true), "x", false)
-		local s_pos = vim.fn.getpos("'<")
-		local e_pos = vim.fn.getpos("'>")
-		if mode == "V" then
-			vim.api.nvim_buf_set_lines(bufnr, s_pos[2] - 1, e_pos[2], false, lines)
-		else
-			vim.api.nvim_buf_set_text(bufnr, s_pos[2] - 1, s_pos[3] - 1, e_pos[2] - 1, e_pos[3], lines)
-		end
-	else
-		local type = #lines > 1 and "l" or "c"
-		local after = false
-		local follow = false
-		vim.api.nvim_put(lines, type, after, follow)
-	end
+	core.replace_in_buffer(transforms[#transforms])
 end
 
 function M.ajapopaja_insert_latest()
@@ -65,11 +43,14 @@ function M.ajapopaja_insert_latest()
 		vim.notify("Ajapopaja: No transformation history found.", vim.log.levels.WARN)
 		return
 	end
-	ajapopaja_insert(transforms[#transforms])
+	core.insert_to_buffer(transforms[#transforms])
 end
 
 local function ajapopaja_transform()
 	local selection_info = core.capture_context()
+	if not selection_info then
+		return
+	end
 	ui.create_multi_line_input("Describe transformation...", function(lines)
 		local prompt = table.concat(lines, "\n")
 		if prompt ~= "" then
@@ -81,7 +62,6 @@ end
 local function ajapopaja_review()
 	local selection_info = core.capture_context()
 	if not selection_info then
-		vim.notify("Ajapopaja: No valid selection found.", vim.log.levels.WARN)
 		return
 	end
 
@@ -112,6 +92,9 @@ end
 -- Specialized Transformation Presets
 local function ajapopaja_select_prompt()
 	local selection = core.capture_context()
+	if not selection then
+		return
+	end
 	ui.select("Select a prompt", state.standard_prompts, function(selected_prompt)
 		core.transform(selected_prompt, selection)
 	end, nil)

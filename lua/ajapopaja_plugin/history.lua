@@ -83,6 +83,19 @@ function M.open()
 		state.current_index = math.min(state.current_index + 1, #state.history_cache[state.current_view])
 		M.render()
 	end, map_opts)
+	vim.keymap.set("n", "x", function()
+		local index = state.current_index
+		state.current_index = index - 1
+		vim.fn.AjapopajaDeleteEntry(state.current_view, index)
+		M.sync_history()
+		M.render()
+	end, map_opts)
+	vim.keymap.set("n", "C", function()
+		state.current_index = 0
+		vim.fn.AjapopajaClearHistory(state.current_view)
+		M.sync_history()
+		M.render()
+	end, map_opts)
 	vim.keymap.set("n", "h", function()
 		state.current_index = math.max(state.current_index - 1, 1)
 		M.render()
@@ -97,7 +110,7 @@ function M.open()
 	end, map_opts)
 	vim.keymap.set("n", "<CR>", function()
 		local item = state.history_cache[state.current_view][state.current_index]
-		if state.current_view == "transform" and core.execute_replacement(item) then
+		if state.current_view == "transform" and core.replace_in_buffer(item) then
 			vim.api.nvim_win_close(win, true)
 		end
 	end, map_opts)
