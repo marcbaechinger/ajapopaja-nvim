@@ -81,7 +81,7 @@ end
 -- Capture selection coordinates
 function M.capture_context()
 	local mode = vim.api.nvim_get_mode().mode
-	if mode ~= "V" then
+	if mode ~= "V" and mode ~= "n" then
 		vim.notify("Only line selection mode supported (V-line)", vim.log.levels.ERROR)
 		return nil
 	end

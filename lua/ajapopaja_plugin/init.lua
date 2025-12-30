@@ -5,8 +5,8 @@ local ui = require("ajapopaja_plugin.ui")
 
 local M = {}
 
--- Backend Callbacks
--- These functions are designed to be called by the Python RPC host
+-- Status line functions
+
 function M.set_loading(state_val)
 	state.is_loading = state_val
 	vim.cmd("redrawstatus")
@@ -26,27 +26,17 @@ function M.ajapopaja_select_model()
 	end, state.current_model)
 end
 
-function M.ajapopaja_apply_latest()
-	history.sync_history()
-	local transforms = state.history_cache.transform
-	if #transforms == 0 then
-		vim.notify("Ajapopaja: No transformation history found.", vim.log.levels.WARN)
+function M.ajapopaja_select_prompt()
+	local selection = core.capture_context()
+	if not selection then
 		return
 	end
-	core.replace_in_buffer(transforms[#transforms])
+	ui.select("Select a prompt", state.standard_prompts, function(selected_prompt)
+		core.transform(selected_prompt, selection)
+	end, nil)
 end
 
-function M.ajapopaja_insert_latest()
-	history.sync_history()
-	local transforms = state.history_cache.transform
-	if #transforms == 0 then
-		vim.notify("Ajapopaja: No transformation history found.", vim.log.levels.WARN)
-		return
-	end
-	core.insert_to_buffer(transforms[#transforms])
-end
-
-local function ajapopaja_transform()
+function M.ajapopaja_transform()
 	local selection_info = core.capture_context()
 	if not selection_info then
 		return
@@ -59,7 +49,7 @@ local function ajapopaja_transform()
 	end)
 end
 
-local function ajapopaja_review()
+function M.ajapopaja_review()
 	local selection_info = core.capture_context()
 	if not selection_info then
 		return
@@ -89,27 +79,34 @@ local function ajapopaja_review()
 	end
 end
 
--- Specialized Transformation Presets
-local function ajapopaja_select_prompt()
-	local selection = core.capture_context()
-	if not selection then
+function M.ajapopaja_apply_latest()
+	history.sync_history()
+	local transforms = state.history_cache.transform
+	if #transforms == 0 then
+		vim.notify("Ajapopaja: No transformation history found.", vim.log.levels.WARN)
 		return
 	end
-	ui.select("Select a prompt", state.standard_prompts, function(selected_prompt)
-		core.transform(selected_prompt, selection)
-	end, nil)
+	core.replace_in_buffer(transforms[#transforms])
 end
 
--- Plugin Setup
--- Registers all commands and default keybindings
+function M.ajapopaja_insert_latest()
+	history.sync_history()
+	local transforms = state.history_cache.transform
+	if #transforms == 0 then
+		vim.notify("Ajapopaja: No transformation history found.", vim.log.levels.WARN)
+		return
+	end
+	core.insert_to_buffer(transforms[#transforms])
+end
+
 function M.setup()
 	local commands = {
 		AjapopajaHistory = history.open,
 		AjapopajaSelectModel = M.ajapopaja_select_model,
 		AjapopajaApplyLatest = M.ajapopaja_apply_latest,
+		AjapopajaInsertLatest = M.ajapopaja_insert_latest,
 	}
 
-	-- Register Named Commands for : prompt
 	for name, fn in pairs(commands) do
 		vim.api.nvim_create_user_command(name, fn, {
 			desc = "Ajapopaja: " .. name,
@@ -120,21 +117,31 @@ function M.setup()
 	-- Register Default Keybindings
 	local keymap = vim.keymap.set
 
-	-- Visual Mode Transformations
-	keymap("v", "<leader>as", ajapopaja_select_prompt, { silent = true, desc = "Ajapopaja: Select a standard prompt" })
-
-	keymap({ "v", "n" }, "<leader>at", ajapopaja_transform, { silent = true, desc = "Ajapopaja: Transform selection" })
-	keymap({ "v", "n" }, "<leader>ar", ajapopaja_review, { silent = true, desc = "Ajapopaja: Review" })
+	-- Transformation of selected text or entire buffer
+	keymap(
+		{ "v", "n" },
+		"<leader>as",
+		M.ajapopaja_select_prompt,
+		{ silent = true, desc = "Ajapopaja: Select a standard prompt" }
+	)
+	keymap(
+		{ "v", "n" },
+		"<leader>at",
+		M.ajapopaja_transform,
+		{ silent = true, desc = "Ajapopaja: Transform selection" }
+	)
+	keymap({ "v", "n" }, "<leader>ar", M.ajapopaja_review, { silent = true, desc = "Ajapopaja: Review" })
+	-- Apply and insert transformations
+	keymap("n", "<leader>ap", M.ajapopaja_apply_latest, { desc = "Ajapopaja: Apply Latest Transformation" })
 	keymap(
 		{ "v", "n" },
 		"<leader>ai",
 		M.ajapopaja_insert_latest,
 		{ desc = "Ajapopaja: Insert/replace Latest Transformation" }
 	)
-
+	-- History and configuration
 	keymap("n", "<leader>aw", history.open, { desc = "Ajapopaja: Open history window" })
 	keymap("n", "<leader>am", M.ajapopaja_select_model, { desc = "Ajapopaja: Select LLM Model" })
-	keymap("n", "<leader>ap", M.ajapopaja_apply_latest, { desc = "Ajapopaja: Apply Latest Transformation" })
 end
 
 return M
