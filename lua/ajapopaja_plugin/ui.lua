@@ -1,7 +1,7 @@
 local M = {}
 local prompt_lib = require("ajapopaja_plugin.prompt_library")
 
-function M.create_multi_line_input(title, callback)
+function M.create_multi_line_input(title, callback, filetype)
 	local prev_win = vim.api.nvim_get_current_win()
 	local bufnr = vim.api.nvim_create_buf(false, true)
 	vim.bo[bufnr].filetype = "markdown"
@@ -58,7 +58,7 @@ function M.create_multi_line_input(title, callback)
 					vim.cmd("startinsert!")
 				end
 			end
-		end)
+		end, filetype)
 	end
 
 	local opts = { buffer = bufnr, silent = true }

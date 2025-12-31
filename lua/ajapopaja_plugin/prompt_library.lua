@@ -63,19 +63,6 @@ local function get_file_path(filetype)
 	return prompt_root .. "/" .. filetype .. ".md"
 end
 
---- Checks if a file can be read from the specified path
--- @param path_to_file string The path to the file to check
--- @return boolean true if the file can be opened for reading, false otherwise
-local function can_read_from_file(path_to_file)
-	local file = io.open(path_to_file, "r")
-	if file then
-		io.close(file)
-		return true
-	else
-		return false
-	end
-end
-
 local cached_prompts = {}
 
 --- Get prompts for a given filetype, falling back to default if needed
@@ -86,7 +73,7 @@ function M.get_prompts(filetype)
 	local requested_file_type = target_file_type
 	if not cached_prompts[requested_file_type] then
 		local file_path = get_file_path(requested_file_type)
-		if not can_read_from_file(file_path) then
+		if not vim.uv.fs_access(file_path, "R") then
 			target_file_type = "default"
 			file_path = get_file_path(target_file_type)
 		end

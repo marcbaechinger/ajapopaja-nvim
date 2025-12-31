@@ -47,7 +47,7 @@ function M.ajapopaja_transform()
 		if prompt ~= "" then
 			core.transform(prompt, selection_info)
 		end
-	end)
+	end, selection_info.lang)
 end
 
 function M.ajapopaja_review()
