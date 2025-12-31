@@ -127,13 +127,23 @@ class HistoryManager:
             return e
         return None
 
-    def get_history(self) -> Dict[str, list]:
-        """Returns current history.
+    def get_uids(self, call_type: str) -> list[str]:
+        """
+        Retrieve all UIDs associated with a specific call type from the history.
+
+        Args:
+            call_type (str): The type of call to retrieve UIDs for
 
         Returns:
-            dict: Current history dictionary containing all interactions
+            list[str]: A list of UIDs corresponding to the specified call type.
+                       Returns an empty list if the call type doesn't exist in history.
         """
-        return self.history
+        if call_type not in self.history:
+            return []
+        uids = []
+        for item in self.history[call_type]:
+            uids.append(item["uid"])
+        return uids
 
 
 class FormatUtil:
@@ -207,16 +217,6 @@ class AjapopajaPlugin(object):
         self.current_model = "qwen3-coder:30b"
         self.formatter = FormatUtil()
 
-    @pynvim.function("AjapopajaGetHistory", sync=True)
-    def get_history(self, _) -> str:
-        """
-        Synchronous retrieval of history for the Lua UI.
-
-        Returns:
-            str: JSON string of the complete history
-        """
-        return json.dumps(self.history_manager.get_history())
-
     @pynvim.function("AjapopajaSetModel", sync=True)
     def set_model(self, args) -> bool:
         """
@@ -233,6 +233,27 @@ class AjapopajaPlugin(object):
             self.vim.command(f"echo 'Ajapopaja: Model set to {self.current_model}'")
             return True
         return False
+
+    @pynvim.function("AjapopajaGetHistoryUids", sync=True)
+    def get_history_uids(self, args) -> Optional[list[str]]:
+        call_type = args[0]
+
+        if call_type not in self.history_manager.history:
+            self._show_error("Invalid call_type")
+            return None
+        return self.history_manager.get_uids(call_type)
+
+    @pynvim.function("AjapopajaGetHistoryItem", sync=True)
+    def get_history_item(self, args) -> Optional[dict]:
+        call_type = args[0]
+        uid = args[1]
+        if call_type not in self.history_manager.history:
+            self._show_error("Invalid call_type")
+            return None
+        for item in self.history_manager.history[call_type]:
+            if item["uid"] == uid:
+                return item
+        return None
 
     @pynvim.function("AjapopajaDeleteEntry", sync=True)
     def delete_entry(self, args) -> bool:
@@ -294,11 +315,14 @@ class AjapopajaPlugin(object):
         Args:
             message: Error message to display
         """
-        self.vim.api.nvim_echo(
-            {"key": "error", "message": message},
-            True,
-            {"title": "Ajapopaja"},
-        )
+        self.vim.err_write(f"Ajapopaja: {message}\n")
+
+    def _show_message(self, message: str) -> None:
+        """
+        Display an informational message to the user and save it to :messages.
+        """
+        safe_message = message.replace("'", "''")
+        self.vim.command(f"echomsg 'Ajapopaja: {safe_message}'")
 
     @pynvim.function("AjapopajaClearHistory", sync=True)
     def clear_history(self, args) -> bool:
@@ -315,13 +339,18 @@ class AjapopajaPlugin(object):
             view = args[0]
             if view in self.history_manager.history:
                 self.history_manager.history[view] = []
-                return self._persist_and_handle_error()
+                return self._persist_and_handle_error(view)
             else:
                 self._show_error("View not found")
                 return False
         except Exception as e:
             self._show_error(f"Unexpected error: {e}")
             return False
+
+    @pynvim.function("AjapopajaRpcHealth", sync=True)
+    def health_check(self, _) -> list[str]:
+        # Return available call types.
+        return ["transform", "review"]
 
     @pynvim.function("AjapopajaAgentCall", sync=False)
     def call_agent(self, args) -> None:

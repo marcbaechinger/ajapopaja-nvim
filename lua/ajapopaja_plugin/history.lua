@@ -4,33 +4,33 @@ local M = {}
 
 local buf, win
 
-function M.sync_history()
-	local raw_history = vim.fn.AjapopajaGetHistory()
-	state.history_cache = vim.json.decode(raw_history)
-end
-
 function M.render()
 	if not buf or not vim.api.nvim_buf_is_valid(buf) then
 		return
 	end
-	local items = state.history_cache[state.current_view]
+	local call_type = state.selected_call_type
+	local uid = state.selected_uids[call_type]
+	local uids = state.call_uids[call_type]
 	local content = {}
 
-	if #items > 0 then
-		state.current_index = math.max(1, math.min(state.current_index, #items))
-	end
-
-	if #items == 0 then
-		content = { "# No " .. state.current_view .. " history found" }
+	if not uid then
+		content = { "# No history item found for call type '" .. state.selected_call_type .. "'" }
 	else
-		local item = items[state.current_index]
+		local item = vim.fn.AjapopajaGetHistoryItem(call_type, uid)
+		if item == nil or type(item) == "userdata" then
+			print("Error: Received invalid data from Python backend for uid " .. uid)
+			return
+		end
+
+		local prompt = item.prompt or "N/A"
+		local model = item.model or "Unknown"
 		local controls = "Controls: [h/l] Nav | [t/r] Switch View | [x] Delete | [C] Clear | [Enter] Apply"
-		table.insert(content, "**Prompt  :** " .. (item.prompt or "N/A"))
-		table.insert(content, "**Model   :** " .. (item.model or "Unknown"))
+		table.insert(content, "**Prompt  :** " .. (prompt or "N/A"))
+		table.insert(content, "**Model   :** " .. (model or "Unknown"))
 		table.insert(content, controls)
 		table.insert(content, "---")
 
-		if state.current_view == "transform" then
+		if state.selected_call_type == "transform" then
 			table.insert(content, "```" .. (item.selection_info.lang or "text"))
 			for _, line in ipairs(vim.split(item.response, "\n")) do
 				table.insert(content, line)
@@ -47,7 +47,13 @@ function M.render()
 	vim.api.nvim_buf_set_lines(buf, 0, -1, false, content)
 	vim.api.nvim_set_option_value("modifiable", false, { buf = buf })
 
-	local title_text = " Ajapopaja: " .. state.current_view .. " (" .. state.current_index .. "/" .. #items .. ") "
+	local title_text = " Ajapopaja: "
+		.. state.selected_call_type
+		.. " ("
+		.. state.get_selected_index()
+		.. "/"
+		.. #uids
+		.. ") "
 	pcall(vim.api.nvim_win_set_config, win, {
 		title = { { title_text, "WhidHeader" } },
 		title_pos = "center",
@@ -55,9 +61,7 @@ function M.render()
 end
 
 function M.open()
-	M.sync_history()
-	local items = state.history_cache[state.current_view]
-	state.current_index = #items > 0 and math.min(state.current_index, #items) or 1
+	state.sync_history()
 
 	buf = vim.api.nvim_create_buf(false, true)
 	vim.api.nvim_set_option_value("filetype", "markdown", { buf = buf })
@@ -80,42 +84,40 @@ function M.open()
 
 	local map_opts = { buffer = buf, silent = true }
 	vim.keymap.set("n", "l", function()
-		state.current_index = math.min(state.current_index + 1, #state.history_cache[state.current_view])
+		state.next()
 		M.render()
 	end, map_opts)
 	vim.keymap.set("n", "x", function()
-		local index = state.current_index
-		state.current_index = index - 1
-		vim.fn.AjapopajaDeleteEntry(state.current_view, index)
-		M.sync_history()
+		local index = state.get_selected_index()
+		vim.fn.AjapopajaDeleteEntry(state.selected_call_type, index)
+		state.sync_history()
 		M.render()
 	end, map_opts)
 	vim.keymap.set("n", "C", function()
-		state.current_index = 0
-		vim.fn.AjapopajaClearHistory(state.current_view)
+		vim.fn.AjapopajaClearHistory(state.selected_call_type)
 		M.sync_history()
 		M.render()
 	end, map_opts)
 	vim.keymap.set("n", "h", function()
-		state.current_index = math.max(state.current_index - 1, 1)
+		state.prev()
 		M.render()
 	end, map_opts)
 	vim.keymap.set("n", "t", function()
-		state.current_view = "transform"
+		state.select_call_type("transform")
 		M.render()
 	end, map_opts)
 	vim.keymap.set("n", "r", function()
-		state.current_view = "review"
+		state.select_call_type("review")
 		M.render()
 	end, map_opts)
 	vim.keymap.set("n", "<CR>", function()
-		local item = state.history_cache[state.current_view][state.current_index]
-		if state.current_view == "transform" and core.replace_in_buffer(item) then
+		local item =
+			vim.fn.AjapopajaGetHistoryItem(state.selected_call_type, state.selected_uids[state.selected_call_type])
+		if state.selected_call_type == "transform" and core.replace_in_buffer(item) then
 			vim.api.nvim_win_close(win, true)
 		end
 	end, map_opts)
 	vim.keymap.set("n", "q", "<cmd>close<CR>", map_opts)
-
 	M.render()
 end
 

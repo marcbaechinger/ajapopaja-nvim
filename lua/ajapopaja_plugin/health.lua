@@ -21,7 +21,7 @@ local function check_rpc_functions()
 		return
 	end
 
-	local status, result = pcall(vim.fn.AjapopajaGetHistory)
+	local status, result = pcall(vim.fn.AjapopajaRpcHealth)
 
 	if status then
 		health.ok("Python RPC Bridge is active and responding.")

@@ -80,23 +80,23 @@ function M.ajapopaja_review()
 end
 
 function M.ajapopaja_apply_latest()
-	history.sync_history()
-	local transforms = state.history_cache.transform
-	if #transforms == 0 then
+	state.sync_history()
+	local item = vim.fn.AjapopajaGetHistoryItem("transform", state.call_uids[#state.call_uids])
+	if not item then
 		vim.notify("Ajapopaja: No transformation history found.", vim.log.levels.WARN)
 		return
 	end
-	core.replace_in_buffer(transforms[#transforms])
+	core.replace_in_buffer(item)
 end
 
 function M.ajapopaja_insert_latest()
-	history.sync_history()
-	local transforms = state.history_cache.transform
-	if #transforms == 0 then
+	state.sync_history()
+	local item = vim.fn.AjapopajaGetHistoryItem("transform", state.call_uids[#state.call_uids])
+	if not item then
 		vim.notify("Ajapopaja: No transformation history found.", vim.log.levels.WARN)
 		return
 	end
-	core.insert_to_buffer(transforms[#transforms])
+	core.insert_to_buffer(item)
 end
 
 function M.setup()
