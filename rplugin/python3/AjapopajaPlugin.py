@@ -117,17 +117,17 @@ class HistoryManager:
         return self.history
 
 
-class PromptBuilder:
+class FormatUtil:
     """Handles building structured prompts with optional code blocks."""
 
     @staticmethod
-    def build_prompt(prompt: str, lang: str, selected_text: str) -> str:
+    def build_prompt(prompt: str, lang: str, selected_code: str) -> str:
         """Constructs a structured prompt with Markdown code blocks.
 
         Args:
             prompt (str): The main prompt text
             lang (str): Language identifier for the code block (e.g., 'python', 'javascript')
-            selected_text (str): Text to be wrapped in a code block
+            selected_code (str): Text to be wrapped in a code block
 
         Returns:
             str: Combined prompt with optional code block
@@ -135,10 +135,10 @@ class PromptBuilder:
         parts = []
         if prompt:
             parts.append(prompt)
-        if selected_text:
-            selected_text = textwrap.dedent(selected_text)
+        if selected_code:
+            selected_code = textwrap.dedent(selected_code)
             lang_label = lang if lang else ""
-            parts.append(f"\n\n```{lang_label}\n{selected_text}\n```")
+            parts.append(f"\n\n```{lang_label}\n{selected_code}\n```")
         return "".join(parts)
 
     @staticmethod
@@ -186,10 +186,10 @@ class AjapopajaPlugin(object):
         self.agent_in_use = False
         self.history_manager = HistoryManager(HISTORY_FILE)
         self.current_model = "qwen3-coder:30b"
-        self.prompt_builder = PromptBuilder()
+        self.formatter = FormatUtil()
 
     @pynvim.function("AjapopajaGetHistory", sync=True)
-    def get_history(self, args) -> str:
+    def get_history(self, _) -> str:
         """
         Synchronous retrieval of history for the Lua UI.
 
@@ -368,7 +368,7 @@ class AjapopajaPlugin(object):
             if not agent_uid:
                 raise Exception("Failed to create agent session.")
 
-            final_prompt = self.prompt_builder.build_prompt(
+            final_prompt = self.formatter.build_prompt(
                 user_prompt if user_prompt else config.get("prompt", ""),
                 selection_info["lang"],
                 selected_text,
@@ -379,7 +379,7 @@ class AjapopajaPlugin(object):
 
             if config.get("chomp"):
                 reply_text = textwrap.dedent(
-                    self.prompt_builder.strip_code_fence(reply_text)
+                    self.formatter.strip_code_fence(reply_text)
                 )
 
             history_item = {
