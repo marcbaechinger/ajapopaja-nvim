@@ -14,6 +14,7 @@ local M = {
 	},
 	-- History UI State
 	selected_call_type = "transform",
+	call_types = { "transform", "review" },
 	selected_index = {},
 	selected_uids = {}, -- stores the currently selected uid for each call type
 	call_uids = {}, -- stores the uids of all history items for each call type
@@ -22,23 +23,40 @@ local M = {
 	current_model = "qwen3-coder:30b",
 }
 
-local function update_history_uids(call_type)
+local function update_history_uids(call_type, init)
 	local uids = vim.fn.AjapopajaGetHistoryUids(call_type)
 	if uids then
 		M.call_uids[call_type] = uids
-		if #uids > 0 then
+		if init and #uids > 0 then
 			M.selected_uids[call_type] = uids[#uids]
+		end
+	end
+end
+
+--- Translates the selected uid to the corresponding index in the
+--- list of history items for a give call type
+-- @param call_type string The type of call to set the index for
+local function set_call_index_by_uid(call_type)
+	local selected_uid = M.selected_uids[call_type]
+	if selected_uid then
+		for i, uid in ipairs(M.call_uids[call_type]) do
+			if selected_uid == uid then
+				M.selected_index[call_type] = i
+				return
+			end
 		end
 	end
 end
 
 function M.sync_history()
 	local init = not M.call_uids[M.selected_call_type]
-	update_history_uids("transform")
-	update_history_uids("review")
-	if init then
-		M.selected_index["transform"] = #M.call_uids["transform"]
-		M.selected_index["review"] = #M.call_uids["review"]
+	for _, call_type in ipairs(M.call_types) do
+		update_history_uids(call_type, init)
+		if init then
+			M.selected_index[call_type] = #M.call_uids[call_type]
+		else
+			set_call_index_by_uid(call_type)
+		end
 	end
 end
 
@@ -48,8 +66,10 @@ function M.select_call_type(call_type)
 		return
 	end
 	M.selected_call_type = call_type
-	M.selected_uids[call_type] = uids[#uids]
-	M.selected_index[call_type] = #uids
+	if not M.selected_uids[call_type] then
+		M.selected_uids[call_type] = uids[#uids]
+		M.selected_index[call_type] = #uids
+	end
 end
 
 function M.get_selected_index(call_type)
@@ -62,7 +82,7 @@ function M.next(call_type)
 
 	local uids = M.call_uids[target_type]
 	if not uids or #uids < 1 then
-		M.selected_index[call_type] = 0
+		M.selected_index[call_type] = 1
 		return
 	end
 
@@ -70,7 +90,7 @@ function M.next(call_type)
 
 	if not current_uid then
 		M.selected_uids[target_type] = uids[1]
-		M.selected_index[call_type] = 0
+		M.selected_index[call_type] = 1
 		return
 	end
 

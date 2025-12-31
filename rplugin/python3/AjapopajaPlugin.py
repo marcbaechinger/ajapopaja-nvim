@@ -188,7 +188,7 @@ class FormatUtil:
                 inside_code = not inside_code
             elif inside_code:
                 result.append(line)
-        return "\n".join(result)
+        return "\n".join(result if len(result) else lines)
 
 
 @pynvim.plugin
@@ -258,29 +258,29 @@ class AjapopajaPlugin(object):
     @pynvim.function("AjapopajaDeleteEntry", sync=True)
     def delete_entry(self, args) -> bool:
         """
-        Deletes a specific entry by view type and index.
+        Deletes a specific entry by call type and index.
 
         Args:
-            args: List containing [view_type, index]
+            args: List containing [call_type, index]
 
         Returns:
             bool: True if deletion was successful, False otherwise
         """
         try:
-            view = args[0]
+            call_type = args[0]
             index = int(args[1]) - 1
 
-            if view not in self.history_manager.history:
-                self._show_error("Invalid view")
+            if call_type not in self.history_manager.history:
+                self._show_error("Invalid call type")
                 return False
 
-            view_history = self.history_manager.history[view]
-            if not (0 <= index < len(view_history)):
+            call_history = self.history_manager.history[call_type]
+            if not (0 <= index < len(call_history)):
                 self._show_error("Invalid index")
                 return False
 
-            view_history.pop(index)
-            return self._persist_and_handle_error(view)
+            call_history.pop(index)
+            return self._persist_and_handle_error(call_type)
         except ValueError:
             self._show_error("Index must be a number")
             return False
@@ -296,16 +296,12 @@ class AjapopajaPlugin(object):
             bool: True if persistence was successful, False otherwise
         """
         try:
-            error = self.history_manager._persist_history(call_type)
-            if error:
-                self.vim.async_call(
-                    lambda: self.vim.err_write(
-                        f"Ajapopaja History Error: {str(error)}\n"
-                    )
-                )
+            self.history_manager._persist_history(call_type)
             return True
         except Exception as e:
-            self._show_error(f"Error when deleting history item {e}")
+            self._show_error(
+                f"Error when persisting history for calltype={call_type}: {e}"
+            )
             return False
 
     def _show_error(self, message: str) -> None:
@@ -327,30 +323,25 @@ class AjapopajaPlugin(object):
     @pynvim.function("AjapopajaClearHistory", sync=True)
     def clear_history(self, args) -> bool:
         """
-        Clears all history for a specific view.
+        Clears all history for a specific call type.
 
         Args:
-            args: List containing the view type to clear
+            args: List containing the call type to clear
 
         Returns:
             bool: True if clearing was successful, False otherwise
         """
         try:
-            view = args[0]
-            if view in self.history_manager.history:
-                self.history_manager.history[view] = []
-                return self._persist_and_handle_error(view)
+            call_type = args[0]
+            if call_type in self.history_manager.history:
+                self.history_manager.history[call_type] = []
+                return self._persist_and_handle_error(call_type)
             else:
                 self._show_error("View not found")
                 return False
         except Exception as e:
             self._show_error(f"Unexpected error: {e}")
             return False
-
-    @pynvim.function("AjapopajaRpcHealth", sync=True)
-    def health_check(self, _) -> list[str]:
-        # Return available call types.
-        return ["transform", "review"]
 
     @pynvim.function("AjapopajaAgentCall", sync=False)
     def call_agent(self, args) -> None:
@@ -363,16 +354,23 @@ class AjapopajaPlugin(object):
         if self.agent_in_use:
             self.vim.command("echo 'Ajapopaja: Agent busy. Please wait.'")
             return
+        elif len(args) < 4:
+            self.vim.command("echo 'Ajapopaja: missing arguments when calling agent'")
+            return
 
-        selected_text = args[0] if len(args) > 0 else ""
-        selection_info = args[1] if len(args) > 1 else {}
-        call_type = args[2] if len(args) > 2 else "transform"
-        user_prompt = args[3] if len(args) > 3 else ""
+        selected_text = args[0]
+        selection_info = args[1]
+        call_type = args[2]
+        user_prompt = args[3]
         config = CALL_TYPES[call_type]
+        if not config:
+            self.vim.command(
+                f"echo 'Ajapopaja: missing configuration for call type {call_type}'"
+            )
+            return
+
         model = self.current_model
-
         self.agent_in_use = True
-
         asyncio.create_task(
             self._async_agent_call(
                 selected_text=selected_text,
@@ -383,7 +381,7 @@ class AjapopajaPlugin(object):
                 model=model,
             )
         )
-        self.vim.command(f'echo "{config["prompt_sent_message"]}"')
+        self.vim.command(f"echo '{config['prompt_sent_message']}'")
 
     async def _async_agent_call(
         self,
@@ -467,3 +465,8 @@ class AjapopajaPlugin(object):
                 await self.agent.release()
             except Exception as e:
                 self._show_error(f"Releasing the agent failed: {e}")
+
+    @pynvim.function("AjapopajaRpcHealth", sync=True)
+    def health_check(self, _) -> list[str]:
+        # Return available call types.
+        return ["transform", "review"]

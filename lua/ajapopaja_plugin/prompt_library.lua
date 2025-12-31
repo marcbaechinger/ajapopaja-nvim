@@ -89,4 +89,14 @@ function M.get_prompts(filetype)
 	return cached_prompts[target_file_type]
 end
 
+function M.get_prompt(filetype, title)
+	local prompts = M.get_prompts(filetype)
+	for _, prompt in ipairs(prompts) do
+		if prompt.title == title then
+			return prompt
+		end
+	end
+	return nil
+end
+
 return M

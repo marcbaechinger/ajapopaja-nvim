@@ -58,6 +58,17 @@ function M.get_bufnr_from_path(path, create_if_missing)
 	return nil
 end
 
+function M.format_prompt(prompt)
+	if not prompt then
+		return ""
+	end
+	local prompt_string = prompt.title
+	if prompt.content ~= "" then
+		prompt_string = "# " .. prompt.title .. "\n\n" .. prompt.content
+	end
+	return prompt_string
+end
+
 function M.get_entire_buffer_range(buf)
 	local line_count = vim.api.nvim_buf_line_count(buf)
 	local start_line = 0

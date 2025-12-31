@@ -3,6 +3,7 @@ local core = require("ajapopaja_plugin.core")
 local history = require("ajapopaja_plugin.history")
 local ui = require("ajapopaja_plugin.ui")
 local utils = require("ajapopaja_plugin.utils")
+local prompt_library = require("ajapopaja_plugin.prompt_library")
 
 local M = {}
 
@@ -10,6 +11,9 @@ local M = {}
 
 function M.set_loading(state_val)
 	state.is_loading = state_val
+	if not state_val then
+		state.sync_history()
+	end
 	vim.cmd("redrawstatus")
 end
 
@@ -32,9 +36,11 @@ function M.ajapopaja_select_prompt()
 	if not selection then
 		return
 	end
+	local filetype = utils.get_programming_language()
 	ui.select_prompt(function(selected_prompt)
-		core.transform(selected_prompt, selection)
-	end, utils.get_programming_language())
+		local prompt = prompt_library.get_prompt(filetype, selected_prompt)
+		core.transform(utils.format_prompt(prompt), selection)
+	end, filetype)
 end
 
 function M.ajapopaja_transform()
@@ -81,7 +87,6 @@ function M.ajapopaja_review()
 end
 
 local function get_latest_transformation()
-	state.sync_history()
 	local transformations = state.call_uids["transform"]
 	local uid = transformations[#transformations]
 	return vim.fn.AjapopajaGetHistoryItem("transform", uid)

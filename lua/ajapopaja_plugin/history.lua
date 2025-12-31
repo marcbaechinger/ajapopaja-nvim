@@ -13,40 +13,40 @@ function M.render()
 	local uids = state.call_uids[call_type]
 	local content = {}
 
+	local not_found = { "# No history item found for call type '" .. state.selected_call_type .. "'" }
 	if not uid then
-		content = { "# No history item found for call type '" .. state.selected_call_type .. "'" }
+		content = not_found
 	else
 		local item = vim.fn.AjapopajaGetHistoryItem(call_type, uid)
 		if item == nil or type(item) == "userdata" then
-			print("Error: Received invalid data from Python backend for uid " .. uid)
-			return
-		end
-
-		local prompt = item.prompt or "N/A"
-		local model = item.model or "Unknown"
-		local controls = "Controls: [h/l] Nav | [t/r] Switch View | [x] Delete | [C] Clear | [Enter] Apply"
-		local prompt_lines = vim.split(prompt, "\n")
-		table.insert(content, "**Prompt  :** " .. (prompt_lines[1] or "N/A"))
-		if #prompt_lines > 1 then
-			for i, line in ipairs(prompt_lines) do
-				if i > 2 then
-					table.insert(content, line)
+			content = not_found
+		else
+			local prompt = item.prompt or "N/A"
+			local model = item.model or "Unknown"
+			local controls = "Controls: [h/l] Nav | [t/r] Switch View | [x] Delete | [C] Clear | [Enter] Apply"
+			local prompt_lines = vim.split(prompt, "\n")
+			table.insert(content, "**Prompt  :** " .. (prompt_lines[1] or "N/A"))
+			if #prompt_lines > 1 then
+				for i, line in ipairs(prompt_lines) do
+					if i > 2 then
+						table.insert(content, line)
+					end
 				end
 			end
-		end
-		table.insert(content, "**Model   :** " .. (model or "Unknown"))
-		table.insert(content, controls)
-		table.insert(content, "---")
+			table.insert(content, "**Model   :** " .. (model or "Unknown"))
+			table.insert(content, controls)
+			table.insert(content, "---")
 
-		if state.selected_call_type == "transform" then
-			table.insert(content, "```" .. (item.selection_info.lang or "text"))
-			for _, line in ipairs(vim.split(item.response, "\n")) do
-				table.insert(content, line)
-			end
-			table.insert(content, "```")
-		else
-			for _, line in ipairs(vim.split(item.response, "\n")) do
-				table.insert(content, line)
+			if state.selected_call_type == "transform" then
+				table.insert(content, "```" .. (item.selection_info.lang or "text"))
+				for _, line in ipairs(vim.split(item.response, "\n")) do
+					table.insert(content, line)
+				end
+				table.insert(content, "```")
+			else
+				for _, line in ipairs(vim.split(item.response, "\n")) do
+					table.insert(content, line)
+				end
 			end
 		end
 	end
@@ -69,8 +69,9 @@ function M.render()
 end
 
 function M.open()
-	state.sync_history()
-
+	if not state.call_uids[state.call_types[1]] then
+		state.sync_history()
+	end
 	buf = vim.api.nvim_create_buf(false, true)
 	vim.api.nvim_set_option_value("filetype", "markdown", { buf = buf })
 	vim.api.nvim_set_option_value("readonly", true, { buf = buf })
@@ -103,7 +104,7 @@ function M.open()
 	end, map_opts)
 	vim.keymap.set("n", "C", function()
 		vim.fn.AjapopajaClearHistory(state.selected_call_type)
-		M.sync_history()
+		state.sync_history()
 		M.render()
 	end, map_opts)
 	vim.keymap.set("n", "h", function()

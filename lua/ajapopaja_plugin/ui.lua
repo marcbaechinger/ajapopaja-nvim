@@ -1,5 +1,6 @@
 local M = {}
 local prompt_lib = require("ajapopaja_plugin.prompt_library")
+local utils = require("ajapopaja_plugin.utils")
 
 function M.create_multi_line_input(title, callback, filetype)
 	local prev_win = vim.api.nvim_get_current_win()
@@ -49,10 +50,14 @@ function M.create_multi_line_input(title, callback, filetype)
 		end
 	end
 
-	local function get_standard_prompt()
+	local function get_prompt()
 		M.select_prompt(function(selected_prompt)
 			if vim.api.nvim_buf_is_valid(bufnr) then
-				vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, vim.split(selected_prompt, "\n"))
+				local prompt = prompt_lib.get_prompt(filetype, selected_prompt)
+				if not prompt then
+					return
+				end
+				vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, vim.split(utils.format_prompt(prompt), "\n"))
 				if vim.api.nvim_win_is_valid(winnr) then
 					vim.api.nvim_set_current_win(winnr)
 					vim.cmd("startinsert!")
@@ -64,7 +69,7 @@ function M.create_multi_line_input(title, callback, filetype)
 	local opts = { buffer = bufnr, silent = true }
 	vim.keymap.set("i", "<C-s>", submit, opts)
 	vim.keymap.set("n", "<CR>", submit, opts)
-	vim.keymap.set("n", "p", get_standard_prompt, opts)
+	vim.keymap.set("n", "p", get_prompt, opts)
 	vim.keymap.set("n", "q", close_ui, opts)
 end
 
