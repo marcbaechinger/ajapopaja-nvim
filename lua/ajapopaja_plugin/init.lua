@@ -2,6 +2,7 @@ local state = require("ajapopaja_plugin.state")
 local core = require("ajapopaja_plugin.core")
 local history = require("ajapopaja_plugin.history")
 local ui = require("ajapopaja_plugin.ui")
+local utils = require("ajapopaja_plugin.utils")
 
 local M = {}
 
@@ -31,9 +32,9 @@ function M.ajapopaja_select_prompt()
 	if not selection then
 		return
 	end
-	ui.select("Select a prompt", state.standard_prompts, function(selected_prompt)
+	ui.select_prompt(function(selected_prompt)
 		core.transform(selected_prompt, selection)
-	end, nil)
+	end, utils.get_programming_language())
 end
 
 function M.ajapopaja_transform()
@@ -79,9 +80,15 @@ function M.ajapopaja_review()
 	end
 end
 
-function M.ajapopaja_apply_latest()
+local function get_latest_transformation()
 	state.sync_history()
-	local item = vim.fn.AjapopajaGetHistoryItem("transform", state.call_uids[#state.call_uids])
+	local transformations = state.call_uids["transform"]
+	local uid = transformations[#transformations]
+	return vim.fn.AjapopajaGetHistoryItem("transform", uid)
+end
+
+function M.ajapopaja_apply_latest()
+	local item = get_latest_transformation()
 	if not item then
 		vim.notify("Ajapopaja: No transformation history found.", vim.log.levels.WARN)
 		return
@@ -90,8 +97,7 @@ function M.ajapopaja_apply_latest()
 end
 
 function M.ajapopaja_insert_latest()
-	state.sync_history()
-	local item = vim.fn.AjapopajaGetHistoryItem("transform", state.call_uids[#state.call_uids])
+	local item = get_latest_transformation()
 	if not item then
 		vim.notify("Ajapopaja: No transformation history found.", vim.log.levels.WARN)
 		return

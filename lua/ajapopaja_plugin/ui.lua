@@ -1,5 +1,5 @@
 local M = {}
-local state = require("ajapopaja_plugin.state")
+local prompt_lib = require("ajapopaja_plugin.prompt_library")
 
 function M.create_multi_line_input(title, callback)
 	local prev_win = vim.api.nvim_get_current_win()
@@ -50,7 +50,7 @@ function M.create_multi_line_input(title, callback)
 	end
 
 	local function get_standard_prompt()
-		M.select("Choose a prompt", state.standard_prompts, function(selected_prompt)
+		M.select_prompt(function(selected_prompt)
 			if vim.api.nvim_buf_is_valid(bufnr) then
 				vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, vim.split(selected_prompt, "\n"))
 				if vim.api.nvim_win_is_valid(winnr) then
@@ -66,6 +66,17 @@ function M.create_multi_line_input(title, callback)
 	vim.keymap.set("n", "<CR>", submit, opts)
 	vim.keymap.set("n", "p", get_standard_prompt, opts)
 	vim.keymap.set("n", "q", close_ui, opts)
+end
+
+function M.select_prompt(callback, filetype)
+	local prompts = prompt_lib.get_prompts(filetype)
+	local list_items = {}
+	for _, prompt in ipairs(prompts) do
+		table.insert(list_items, prompt.title)
+	end
+	M.select("Select a prompt", list_items, function(selected_prompt)
+		callback(selected_prompt)
+	end, nil)
 end
 
 ---@param prompt string: The header for the selection UI
