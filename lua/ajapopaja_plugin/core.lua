@@ -35,7 +35,7 @@ local function create_selection_info(bufnr, selection)
 	local indentation = math.huge
 	for _, line in ipairs(lines) do
 		local leading_whitespace_count = #line:match("^%s*")
-		if leading_whitespace_count < indentation then
+		if leading_whitespace_count < indentation and leading_whitespace_count < #line then
 			indentation = leading_whitespace_count
 		end
 	end
