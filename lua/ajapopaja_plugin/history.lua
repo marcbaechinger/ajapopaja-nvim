@@ -25,8 +25,8 @@ function M.render()
 	else
 		local item = items[state.current_index]
 		local controls = "Controls: [h/l] Nav | [t/r] Switch View | [x] Delete | [C] Clear | [Enter] Apply"
-		table.insert(content, "**Prompt:** " .. (item.prompt or "N/A"))
-		table.insert(content, "**Model:** " .. (item.model or "Unknown"))
+		table.insert(content, "**Prompt  :** " .. (item.prompt or "N/A"))
+		table.insert(content, "**Model   :** " .. (item.model or "Unknown"))
 		table.insert(content, controls)
 		table.insert(content, "---")
 
