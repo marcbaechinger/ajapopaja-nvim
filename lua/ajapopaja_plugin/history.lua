@@ -25,7 +25,15 @@ function M.render()
 		local prompt = item.prompt or "N/A"
 		local model = item.model or "Unknown"
 		local controls = "Controls: [h/l] Nav | [t/r] Switch View | [x] Delete | [C] Clear | [Enter] Apply"
-		table.insert(content, "**Prompt  :** " .. (prompt or "N/A"))
+		local prompt_lines = vim.split(prompt, "\n")
+		table.insert(content, "**Prompt  :** " .. (prompt_lines[1] or "N/A"))
+		if #prompt_lines > 1 then
+			for i, line in ipairs(prompt_lines) do
+				if i > 2 then
+					table.insert(content, line)
+				end
+			end
+		end
 		table.insert(content, "**Model   :** " .. (model or "Unknown"))
 		table.insert(content, controls)
 		table.insert(content, "---")
