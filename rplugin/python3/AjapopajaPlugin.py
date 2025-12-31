@@ -1,4 +1,6 @@
+from uuid import uuid4
 import pynvim
+from pathlib import Path
 import textwrap
 import json
 import os
@@ -9,7 +11,7 @@ from typing import Dict, Any, Optional
 
 # Configuration and Constants
 API_BASE_URL = "http://127.0.0.1:8000"
-HISTORY_FILE = os.path.expanduser("~/.ajapopaja/history.json")
+HISTORY_DIR = os.path.expanduser("~/.ajapopaja/history/")
 
 # Configuration for different LLM workflows
 CALL_TYPES = {
@@ -39,50 +41,67 @@ class HistoryManager:
     per interaction type.
     """
 
-    def __init__(self, history_file: str) -> None:
+    def __init__(self, history_dir: str) -> None:
         """Initialize the HistoryManager with a specified history file path.
 
         Args:
-            history_file (str): Path to the JSON file where history is stored
+            history_dir (str): Path to the directory where JSON files are stored
         """
-        self.history_file = history_file
-        self.history: Dict[str, list] = self._load_history()
+        self.history_dir = Path(history_dir)
+        self.history: Dict[str, list] = self._load_history(["transform", "review"])
 
-    def _load_history(self) -> Dict[str, list]:
+    def _load_history(self, call_types: list[str]) -> Dict[str, list]:
         """Loads interaction history from the local cache file.
 
-        Attempts to read and parse the history file. If the file doesn't exist
-        or is invalid, initializes with an empty history structure.
+        Attempts to read and parse the history file for each call type. If the file
+        doesn't exist or is invalid (JSON decode error or IO error), initializes
+        with an empty list for that call type.
+
+        Args:
+            call_types (list[str]): List of call type identifiers to load history for
 
         Returns:
-            dict: Dictionary containing 'transform' and 'review' lists
+            dict: Dictionary mapping call type strings to lists of interaction records.
+                  Keys are the call types, values are lists of history entries.
+                  Example: {"transform": [...], "review": [...]}
         """
-        if os.path.exists(self.history_file):
-            try:
-                with open(self.history_file, "r") as f:
-                    return json.load(f)
-            except (json.JSONDecodeError, IOError):
-                pass
-        return {"transform": [], "review": []}
+        history = {}
 
-    def _persist_history(self) -> None:
+        for call_type in call_types:
+            history_file = self.history_dir / f"{call_type}.json"
+            if os.path.exists(history_file):
+                try:
+                    with open(history_file, "r") as f:
+                        history[call_type] = json.load(f)
+                except (json.JSONDecodeError, IOError):
+                    history[call_type] = []
+            else:
+                history[call_type] = []
+
+        return history
+
+    def _persist_history(self, call_type: str) -> None:
         """Helper to save the current history state to disk.
 
         Creates the directory structure if needed and writes the history
         to the specified file. Raises exceptions on write or serialization errors.
 
+        Args:
+            call_type: The type of LLM call (transform, review, ...)
+
         Raises:
             IOError: If failed to write to the history file
             TypeError: If history data cannot be serialized to JSON
         """
+        json_file = self.history_dir / f"{call_type}.json"
         try:
-            os.makedirs(os.path.dirname(self.history_file), exist_ok=True)
-            with open(self.history_file, "w") as f:
-                json.dump(self.history, f)
+            os.makedirs(os.path.dirname(json_file), exist_ok=True)
+            with open(json_file, "w") as f:
+                json.dump(self.history[call_type], f)
         except IOError as e:
-            raise IOError(f"Failed to write history file '{self.history_file}': {e}")
+            raise IOError(f"Failed to write history file '{json_file}': {e}")
         except TypeError as e:
-            raise TypeError(f"Failed to serialize history data: {e}")
+            raise TypeError(f"Failed to serialize history data for {call_type}: {e}")
 
     def save_history(self, call_type: str, item: Any) -> Optional[Exception]:
         """Persists a new interaction and trims to the last 50 entries.
@@ -103,7 +122,7 @@ class HistoryManager:
         self.history[call_type].append(item)
         self.history[call_type] = self.history[call_type][-50:]
         try:
-            self._persist_history()
+            self._persist_history(call_type)
         except (IOError, TypeError) as e:
             return e
         return None
@@ -184,7 +203,7 @@ class AjapopajaPlugin(object):
         self.vim = vim
         self.agent = AgentClient(API_BASE_URL)
         self.agent_in_use = False
-        self.history_manager = HistoryManager(HISTORY_FILE)
+        self.history_manager = HistoryManager(HISTORY_DIR)
         self.current_model = "qwen3-coder:30b"
         self.formatter = FormatUtil()
 
@@ -240,7 +259,7 @@ class AjapopajaPlugin(object):
                 return False
 
             view_history.pop(index)
-            return self._persist_and_handle_error()
+            return self._persist_and_handle_error(view)
         except ValueError:
             self._show_error("Index must be a number")
             return False
@@ -248,7 +267,7 @@ class AjapopajaPlugin(object):
             self._show_error(f"Unexpected error: {e}")
             return False
 
-    def _persist_and_handle_error(self) -> bool:
+    def _persist_and_handle_error(self, call_type: str) -> bool:
         """
         Persist history and handle any errors during persistence.
 
@@ -256,7 +275,7 @@ class AjapopajaPlugin(object):
             bool: True if persistence was successful, False otherwise
         """
         try:
-            error = self.history_manager._persist_history()
+            error = self.history_manager._persist_history(call_type)
             if error:
                 self.vim.async_call(
                     lambda: self.vim.err_write(
@@ -383,6 +402,7 @@ class AjapopajaPlugin(object):
                 )
 
             history_item = {
+                "uid": str(uuid4()),
                 "prompt": user_prompt or config.get("prompt", "Code Review"),
                 "selection_info": selection_info,
                 "response": reply_text,
