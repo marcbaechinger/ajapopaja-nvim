@@ -9,28 +9,86 @@ from agent_client.agent_client import AgentClient
 from typing import Dict, Any, Optional
 
 
-# Configuration and Constants
+def get_plugin_path() -> Path:
+    """
+    Returns the absolute path to the root of the Neovim plugin.
+    Equivalent to the Lua runtime-file discovery.
+    """
+    current_file = Path(__file__).resolve()
+
+    try:
+        plugin_root = current_file.parents[2]
+        if plugin_root.exists():
+            return plugin_root
+    except IndexError as e:
+        raise e
+    raise ValueError("plugin root not found")
+
+
 API_BASE_URL = "http://127.0.0.1:8000"
 HISTORY_DIR = os.path.expanduser("~/.ajapopaja/history/")
+CALL_TYPES_FILE = get_plugin_path() / "call_types/default.json"
 
-# Configuration for different LLM workflows
-CALL_TYPES = {
-    "transform": {
-        "system_instructions": "You are an expert engineer helping developers to improve their code. Your output is ONLY the code transformation requested, with no conversational filler or markdown markers unless explicitly asked.",
-        "prompt_sent_message": "Code sent for transformation...",
-        "response_received_message": "Transformation complete. Register 'c' updated. Use \\\"cp to paste.",
-        "chomp": True,
-        "register": "c",
-    },
-    "review": {
-        "system_instructions": "You are an expert engineer. Provide a rigorous code review focusing on correctness, efficiency, and readability. Use Markdown formatting.",
-        "prompt": "Review this code",
-        "prompt_sent_message": "Code sent for review...",
-        "response_received_message": "Review complete. Register 'r' updated. Use \\\"rp to paste.",
-        "chomp": False,
-        "register": "r",
-    },
-}
+
+class CallTypeManager:
+    """Manages call types loaded from a JSON file for configuration and lookup."""
+
+    def __init__(self, file_path: Path):
+        """Initialize the CallTypeManager with a file path.
+
+        Args:
+            file_path (Path): Path to the JSON file containing call type definitions
+        """
+        self.call_types = self._load_call_types(file_path)
+
+    def _load_call_types(self, file_path: Path) -> Dict[str, Any]:
+        """Load call types from a JSON file.
+
+        Args:
+            file_path (Path): Path to the JSON file containing call type definitions
+
+        Returns:
+            Dict[str, Any]: Dictionary containing all call type definitions
+
+        Raises:
+            FileNotFoundError: If the specified file does not exist
+            json.JSONDecodeError: If the file contains invalid JSON
+        """
+        try:
+            with open(file_path, "r") as file:
+                return json.load(file)
+        except FileNotFoundError as e:
+            raise e
+        except json.JSONDecodeError as e:
+            raise e
+
+    def get_call_type(self, call_type: str) -> Dict[str, Any]:
+        """Get a specific call type by name.
+
+        Args:
+            call_type (str): Name of the call type to retrieve
+
+        Returns:
+            Dict[str, Any]: Dictionary containing the call type definition,
+                           or empty dict if not found
+        """
+        return self.call_types.get(call_type, {})
+
+    def get_all_call_types(self) -> Dict[str, Any]:
+        """Get all call types.
+
+        Returns:
+            Dict[str, Any]: Dictionary containing all call type definitions
+        """
+        return self.call_types
+
+    def get_all_call_type_names(self) -> list[str]:
+        """Get all call type names.
+
+        Returns:
+            list[str]: List of all call type names
+        """
+        return list(self.call_types)
 
 
 class HistoryManager:
@@ -238,8 +296,13 @@ class AjapopajaPlugin(object):
         self.agent = AgentClient(API_BASE_URL)
         self.agent_in_use = False
         self.history_manager = HistoryManager(HISTORY_DIR)
+        self.call_type_manager = CallTypeManager(CALL_TYPES_FILE)
         self.current_model = "qwen3-coder:30b"
         self.formatter = FormatUtil()
+
+    @pynvim.function("AjapopajaGetCallTypes", sync=True)
+    def get_call_types(self, args) -> list[str]:
+        return self.call_type_manager.get_all_call_type_names()
 
     @pynvim.function("AjapopajaSetModel", sync=True)
     def set_model(self, args) -> bool:
@@ -381,13 +444,13 @@ class AjapopajaPlugin(object):
         selection_info = args[1]
         call_type = args[2]
         user_prompt = args[3]
-        config = CALL_TYPES[call_type]
-        if not config:
+        call_types = self.call_type_manager.get_all_call_types()
+        if call_type not in call_types:
             self.vim.command(
                 f"echo 'Ajapopaja: missing configuration for call type {call_type}'"
             )
             return
-
+        config = call_types[call_type]
         model = self.current_model
         self.agent_in_use = True
         asyncio.create_task(

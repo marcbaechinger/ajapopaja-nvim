@@ -1,0 +1,17 @@
+{
+  "transform": {
+    "system_instructions": "You are an expert engineer helping developers to improve their code. Your output is ONLY the code transformation requested, with no conversational filler or markdown markers unless explicitly asked.",
+    "prompt_sent_message": "Code sent for transformation...",
+    "response_received_message": "Transformation complete. Register 'c' updated. Use \\\"cp to paste.",
+    "chomp": true,
+    "register": "c"
+  },
+  "review": {
+    "system_instructions": "You are an expert engineer. Provide a rigorous code review focusing on correctness, efficiency, and readability. Use Markdown formatting.",
+    "prompt": "Review this code",
+    "prompt_sent_message": "Code sent for review...",
+    "response_received_message": "Review complete. Register 'r' updated. Use \\\"rp to paste.",
+    "chomp": false,
+    "register": "r"
+  }
+}

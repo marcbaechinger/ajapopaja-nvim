@@ -14,7 +14,7 @@ local M = {
 	},
 	-- History UI State
 	selected_call_type = "transform",
-	call_types = { "transform", "review" },
+	call_types = {},
 	selected_index = {},
 	selected_uids = {}, -- stores the currently selected uid for each call type
 	call_uids = {}, -- stores the uids of all history items for each call type
@@ -51,6 +51,9 @@ end
 function M.sync_history()
 	local uids = M.call_uids[M.selected_call_type]
 	local init = not uids or #uids == 0
+	if not M.call_types or #M.call_types == 0 then
+		M.call_types = vim.fn.AjapopajaGetCallTypes()
+	end
 	for _, call_type in ipairs(M.call_types) do
 		update_history_uids(call_type, init)
 		if init then
