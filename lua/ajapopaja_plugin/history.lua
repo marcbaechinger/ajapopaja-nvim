@@ -120,7 +120,7 @@ end
 
 local function delete_current_item()
 	local uid = state.selected_uids[state.selected_call_type]
-	local new_uid = vim.fn.AjapopajaDeleteEntry(state.selected_call_type, uid)
+	local new_uid = vim.fn.AjapopajaDeleteHistoryItem(state.selected_call_type, uid)
 	state.sync_history()
 	if new_uid ~= nil and type(new_uid) ~= "userdata" then
 		state.selected_uids[state.selected_call_type] = new_uid

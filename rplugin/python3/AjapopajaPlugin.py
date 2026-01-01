@@ -367,8 +367,8 @@ class AjapopajaPlugin(object):
                 return item
         return None
 
-    @pynvim.function("AjapopajaDeleteEntry", sync=True)
-    def delete_entry(self, args) -> Optional[str]:
+    @pynvim.function("AjapopajaDeleteHistoryItem", sync=True)
+    def delete_history_item(self, args) -> Optional[str]:
         """
         Deletes a specific entry by call type and uid.
 
