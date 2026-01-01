@@ -54,6 +54,18 @@ function M.ajapopaja_transform()
 	end, selection_info.lang)
 end
 
+function M.ajapopaja_iterate_with_multiline_prompt(history_item)
+	if not history_item.selection_info then
+		return
+	end
+	ui.create_multi_line_input("Describe transformation...", function(lines)
+		local prompt = table.concat(lines, "\n")
+		if prompt ~= "" then
+			core.transform(prompt, history_item.selection_info, vim.split(history_item.response, "\n"))
+		end
+	end, history_item.selection_info.lang)
+end
+
 function M.ajapopaja_review()
 	local selection_info = core.capture_context()
 	if not selection_info then
@@ -112,6 +124,8 @@ function M.ajapopaja_insert_latest()
 end
 
 function M.setup()
+	history.setup(M)
+
 	local commands = {
 		AjapopajaHistory = history.open,
 		AjapopajaSelectModel = M.ajapopaja_select_model,
