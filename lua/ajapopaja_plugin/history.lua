@@ -82,9 +82,8 @@ local function refine()
 	local uid = state.selected_uids["transform"]
 	local item = vim.fn.AjapopajaGetHistoryItem("transform", uid)
 	if item ~= nil then
-		vim.api.nvim_win_close(win, true)
-		if vim.api.nvim_win_is_valid(prev_win) then
-			vim.api.nvim_set_current_win(prev_win)
+		if vim.api.nvim_win_is_valid(win) then
+			vim.api.nvim_set_current_win(win)
 		end
 		plugin.ajapopaja_iterate_with_multiline_prompt(item)
 	end
@@ -99,9 +98,8 @@ local function refine_with_standard_prompt()
 	if item ~= nil then
 		ui.select_prompt(function(selectedPrompt)
 			core.transform(selectedPrompt, item.selection_info, vim.split(item.response, "\n"))
-			vim.api.nvim_win_close(win, true)
-			if vim.api.nvim_win_is_valid(prev_win) then
-				vim.api.nvim_set_current_win(prev_win)
+			if vim.api.nvim_win_is_valid(win) then
+				vim.api.nvim_set_current_win(win)
 			end
 		end, item.selection_info.lang)
 	end
@@ -133,6 +131,13 @@ local function delete_current_item()
 		end
 	end
 	M.render()
+end
+
+local function close_history_window()
+	vim.api.nvim_win_close(win, true)
+	if vim.api.nvim_win_is_valid(prev_win) then
+		vim.api.nvim_set_current_win(prev_win)
+	end
 end
 
 local function select_call_type(call_type)
@@ -191,7 +196,7 @@ function M.open()
 	vim.keymap.set("n", "I", refine_with_standard_prompt, map_opts)
 	vim.keymap.set("n", "i", refine, map_opts)
 	vim.keymap.set("n", "<CR>", apply_transformation, map_opts)
-	vim.keymap.set("n", "q", "<cmd>close<CR>", map_opts)
+	vim.keymap.set("n", "q", close_history_window, map_opts)
 	M.render()
 end
 
