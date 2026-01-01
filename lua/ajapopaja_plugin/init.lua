@@ -9,11 +9,9 @@ local M = {}
 
 -- Status line functions
 
-function M.set_loading(state_val)
-	state.is_loading = state_val
-	if not state_val then
-		state.sync_history()
-	end
+function M.stop_loading()
+	state.is_loading = false
+	state.sync_history()
 	vim.cmd("redrawstatus")
 end
 
@@ -87,6 +85,9 @@ function M.ajapopaja_review()
 end
 
 local function get_latest_transformation()
+	if not state.call_uids["transform"] then
+		state.sync_history()
+	end
 	local transformations = state.call_uids["transform"]
 	local uid = transformations[#transformations]
 	return vim.fn.AjapopajaGetHistoryItem("transform", uid)

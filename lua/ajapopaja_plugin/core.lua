@@ -138,8 +138,8 @@ end
 
 -- Replacement Logic with Safety Check
 function M.replace_in_buffer(item)
-	if not item then
-		vim.notify("Ajapopaja: No valid context to apply.", vim.log.levels.WARN)
+	if item == nil or item == vim.NIL then
+		vim.notify("Ajapopaja: No valid history item to apply.", vim.log.levels.WARN)
 		return false
 	end
 
@@ -187,20 +187,23 @@ function M.replace_in_buffer(item)
 end
 
 -- Orchestrate Transform Request
-function M.transform(prompt, selection_info)
+function M.transform(prompt, selection_info, code_lines)
 	if not selection_info then
 		vim.notify("Ajapopaja: No valid selection found")
 		return
 	end
 
-	local text_lines = vim.api.nvim_buf_get_text(
-		selection_info.buf_id,
-		selection_info.start_row,
-		selection_info.start_col,
-		selection_info.end_row,
-		selection_info.end_col,
-		{}
-	)
+	local text_lines = code_lines
+	if not text_lines then
+		text_lines = vim.api.nvim_buf_get_text(
+			selection_info.buf_id,
+			selection_info.start_row,
+			selection_info.start_col,
+			selection_info.end_row,
+			selection_info.end_col,
+			{}
+		)
+	end
 
 	state.is_loading = true
 	vim.cmd("redrawstatus")

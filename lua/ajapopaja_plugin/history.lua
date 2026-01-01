@@ -14,7 +14,7 @@ function M.render()
 	local content = {}
 
 	local not_found = { "# No history item found for call type '" .. state.selected_call_type .. "'" }
-	if not uid then
+	if not uid or type(uid) == "userdata" then
 		content = not_found
 	else
 		local item = vim.fn.AjapopajaGetHistoryItem(call_type, uid)
@@ -97,9 +97,12 @@ function M.open()
 		M.render()
 	end, map_opts)
 	vim.keymap.set("n", "x", function()
-		local index = state.get_selected_index()
-		vim.fn.AjapopajaDeleteEntry(state.selected_call_type, index)
+		local uid = state.selected_uids[state.selected_call_type]
+		local new_uid = vim.fn.AjapopajaDeleteEntry(state.selected_call_type, uid)
 		state.sync_history()
+		if new_uid ~= nil then
+			state.selected_uids[state.selected_call_type] = new_uid
+		end
 		M.render()
 	end, map_opts)
 	vim.keymap.set("n", "C", function()

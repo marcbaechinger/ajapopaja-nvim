@@ -33,9 +33,21 @@ def create_html_table(rows):
     return html
 
 
+def regression(data: list[list[float]]) -> float:
+    return 0.0
+
+
 def count_by_country(sorted_list_of_countries: list[str], country: str) -> int:
     return 0
 
 
 def distance_on_surface_of_earth(lat1, lon1, lat2, lon2) -> int:
     return 0
+
+
+def merge_sort(
+    sorted_strings_1: list[str],
+    sorted_strings_2: list[str],
+    input_sort_order_descending: bool,
+) -> list[str]:
+    return []

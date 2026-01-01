@@ -49,7 +49,8 @@ local function set_call_index_by_uid(call_type)
 end
 
 function M.sync_history()
-	local init = not M.call_uids[M.selected_call_type]
+	local uids = M.call_uids[M.selected_call_type]
+	local init = not uids or #uids == 0
 	for _, call_type in ipairs(M.call_types) do
 		update_history_uids(call_type, init)
 		if init then

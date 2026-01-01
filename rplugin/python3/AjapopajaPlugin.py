@@ -145,6 +145,30 @@ class HistoryManager:
             uids.append(item["uid"])
         return uids
 
+    def remove_by_uid(self, call_type, uid):
+        """
+        Remove a call item from the specified call history by its unique identifier.
+
+        Args:
+            call_type (str): The type of call history to search (e.g., 'transform' or 'review')
+            uid (str): The unique identifier of the call item to remove
+
+        Returns:
+            str or None: The UID of the call item that replaces the removed one at
+                the given index in the list or None if the removed item was the
+                last in the list.
+        """
+        call_history = self.history[call_type]
+        index = -1
+        for i, item in enumerate(call_history):
+            if item["uid"] == uid:
+                index = i
+                break
+        if index >= 0 and index < len(call_history):
+            call_history.pop(index)
+            return call_history[index]["uid"] if index < len(call_history) else None
+        return None
+
 
 class FormatUtil:
     """Handles building structured prompts with optional code blocks."""
@@ -256,37 +280,32 @@ class AjapopajaPlugin(object):
         return None
 
     @pynvim.function("AjapopajaDeleteEntry", sync=True)
-    def delete_entry(self, args) -> bool:
+    def delete_entry(self, args) -> Optional[str]:
         """
-        Deletes a specific entry by call type and index.
+        Deletes a specific entry by call type and uid.
 
         Args:
-            args: List containing [call_type, index]
+            args: List containing [call_type, uid]
 
         Returns:
-            bool: True if deletion was successful, False otherwise
+            str: The uid of the new item at the same index than the removed one.
         """
         try:
             call_type = args[0]
-            index = int(args[1]) - 1
-
+            uid = args[1]
             if call_type not in self.history_manager.history:
                 self._show_error("Invalid call type")
-                return False
-
-            call_history = self.history_manager.history[call_type]
-            if not (0 <= index < len(call_history)):
-                self._show_error("Invalid index")
-                return False
-
-            call_history.pop(index)
-            return self._persist_and_handle_error(call_type)
+            elif not uid:
+                self._show_error("Invalid uid")
+            else:
+                uid = self.history_manager.remove_by_uid(call_type, uid)
+                self._persist_and_handle_error(call_type)
+                return uid
         except ValueError:
             self._show_error("Index must be a number")
-            return False
         except Exception as e:
             self._show_error(f"Unexpected error: {e}")
-            return False
+        return None
 
     def _persist_and_handle_error(self, call_type: str) -> bool:
         """
@@ -446,7 +465,7 @@ class AjapopajaPlugin(object):
             def finalize():
                 self.agent_in_use = False
                 self.vim.funcs.setreg(config["register"], reply_text, "v")
-                self.vim.exec_lua("require('ajapopaja_plugin').set_loading(false)")
+                self.vim.exec_lua("require('ajapopaja_plugin').stop_loading()")
                 self.vim.command(f'echo "{config["response_received_message"]}"')
 
             self.vim.async_call(finalize)
@@ -455,7 +474,7 @@ class AjapopajaPlugin(object):
 
             def on_error(err: str = str(e)) -> None:
                 self.agent_in_use = False
-                self.vim.exec_lua("require('ajapopaja_plugin').set_loading(false)")
+                self.vim.exec_lua("require('ajapopaja_plugin').stop_loading()")
                 self.vim.err_write(f"Ajapopaja API Error: {str(err)}\n")
 
             self.vim.async_call(on_error)
