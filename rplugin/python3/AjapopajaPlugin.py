@@ -1,3 +1,4 @@
+import re
 from uuid import uuid4
 import pynvim
 from pathlib import Path
@@ -91,13 +92,66 @@ class CallTypeManager:
         return list(self.call_types)
 
 
-class HistoryManager:
-    """Manages loading and persisting interaction history.
+class FilePathHelper:
+    """Helper class for file path operations."""
 
-    This class handles loading interaction history from a local cache file,
-    persisting new interactions, and maintaining a maximum of 50 entries
-    per interaction type.
-    """
+    @staticmethod
+    def get_file_path(history_dir: str, call_type: str) -> Path:
+        """Construct the file path for a given call type.
+
+        Args:
+            history_dir (str): Path to the directory where JSON files are stored
+            call_type (str): Type of LLM call (transform, review, ...)
+
+        Returns:
+            Path: The constructed file path
+        """
+        return Path(history_dir) / f"{call_type}.json"
+
+
+class JsonFileHandler:
+    """Handles file operations."""
+
+    @staticmethod
+    def read_file(file_path: Path) -> list:
+        """Read and parse a JSON file.
+
+        Args:
+            file_path (Path): Path to the JSON file
+
+        Returns:
+            list: The parsed JSON data as a list
+        """
+        try:
+            with open(file_path, "r") as f:
+                return json.load(f)
+        except (json.JSONDecodeError, IOError):
+            return []
+
+    @staticmethod
+    def write_file(file_path: Path, data: list) -> None:
+        """Write data to a JSON file.
+
+        Args:
+            file_path (Path): Path to the JSON file
+            data (list): Data to be written to the file
+
+        Raises:
+            IOError: If failed to write to the history file
+            TypeError: If history data cannot be serialized to JSON
+        """
+        try:
+            os.makedirs(os.path.dirname(file_path), exist_ok=True)
+            with open(file_path, "w") as f:
+                json.dump(data, f)
+        except IOError as e:
+            raise IOError(f"Failed to write history file '{file_path}': {e}")
+        except TypeError as e:
+            raise TypeError(f"Failed to serialize history data: {e}")
+
+
+class HistoryManager:
+    """Manages loading and persisting interaction history."""
 
     def __init__(self, history_dir: str) -> None:
         """Initialize the HistoryManager with a specified history file path.
@@ -105,44 +159,26 @@ class HistoryManager:
         Args:
             history_dir (str): Path to the directory where JSON files are stored
         """
-        self.history_dir = Path(history_dir)
+        self.history_dir = history_dir
         self.history: Dict[str, list] = self._load_history(["transform", "review"])
 
     def _load_history(self, call_types: list[str]) -> Dict[str, list]:
         """Loads interaction history from the local cache file.
-
-        Attempts to read and parse the history file for each call type. If the file
-        doesn't exist or is invalid (JSON decode error or IO error), initializes
-        with an empty list for that call type.
 
         Args:
             call_types (list[str]): List of call type identifiers to load history for
 
         Returns:
             dict: Dictionary mapping call type strings to lists of interaction records.
-                  Keys are the call types, values are lists of history entries.
-                  Example: {"transform": [...], "review": [...]}
         """
         history = {}
-
         for call_type in call_types:
-            history_file = self.history_dir / f"{call_type}.json"
-            if os.path.exists(history_file):
-                try:
-                    with open(history_file, "r") as f:
-                        history[call_type] = json.load(f)
-                except (json.JSONDecodeError, IOError):
-                    history[call_type] = []
-            else:
-                history[call_type] = []
-
+            file_path = FilePathHelper.get_file_path(self.history_dir, call_type)
+            history[call_type] = JsonFileHandler.read_file(file_path)
         return history
 
     def _persist_history(self, call_type: str) -> None:
         """Helper to save the current history state to disk.
-
-        Creates the directory structure if needed and writes the history
-        to the specified file. Raises exceptions on write or serialization errors.
 
         Args:
             call_type: The type of LLM call (transform, review, ...)
@@ -151,21 +187,11 @@ class HistoryManager:
             IOError: If failed to write to the history file
             TypeError: If history data cannot be serialized to JSON
         """
-        json_file = self.history_dir / f"{call_type}.json"
-        try:
-            os.makedirs(os.path.dirname(json_file), exist_ok=True)
-            with open(json_file, "w") as f:
-                json.dump(self.history[call_type], f)
-        except IOError as e:
-            raise IOError(f"Failed to write history file '{json_file}': {e}")
-        except TypeError as e:
-            raise TypeError(f"Failed to serialize history data for {call_type}: {e}")
+        file_path = FilePathHelper.get_file_path(self.history_dir, call_type)
+        JsonFileHandler.write_file(file_path, self.history[call_type])
 
     def save_history(self, call_type: str, item: Any) -> Optional[Exception]:
         """Persists a new interaction and trims to the last 50 entries.
-
-        Appends the new item to the specified call type history and ensures
-        the history doesn't exceed 50 entries by keeping only the most recent.
 
         Args:
             call_type (str): Type of interaction ('transform' or 'review')
@@ -186,26 +212,20 @@ class HistoryManager:
         return None
 
     def get_uids(self, call_type: str) -> list[str]:
-        """
-        Retrieve all UIDs associated with a specific call type from the history.
+        """Retrieve all UIDs associated with a specific call type from the history.
 
         Args:
             call_type (str): The type of call to retrieve UIDs for
 
         Returns:
             list[str]: A list of UIDs corresponding to the specified call type.
-                       Returns an empty list if the call type doesn't exist in history.
         """
         if call_type not in self.history:
             return []
-        uids = []
-        for item in self.history[call_type]:
-            uids.append(item["uid"])
-        return uids
+        return [item["uid"] for item in self.history[call_type]]
 
     def remove_by_uid(self, call_type, uid):
-        """
-        Remove a call item from the specified call history by its unique identifier.
+        """Remove a call item from the specified call history by its unique identifier.
 
         Args:
             call_type (str): The type of call history to search (e.g., 'transform' or 'review')
@@ -265,12 +285,17 @@ class FormatUtil:
         lines = text.splitlines()
         result = []
         inside_code = False
+        has_fences = False
         for line in lines:
-            if line.startswith("```"):
+            if re.match("^`{3}[a-z]+\\s*$", line):
+                inside_code = True
+                has_fences = True
+            elif line.startswith("```"):
                 inside_code = not inside_code
+                has_fences = True
             elif inside_code:
                 result.append(line)
-        return "\n".join(result if len(result) else lines)
+        return "\n".join(result if has_fences else lines)
 
 
 @pynvim.plugin
@@ -301,7 +326,7 @@ class AjapopajaPlugin(object):
         self.formatter = FormatUtil()
 
     @pynvim.function("AjapopajaGetCallTypes", sync=True)
-    def get_call_types(self, args) -> list[str]:
+    def get_call_types(self, _) -> list[str]:
         return self.call_type_manager.get_all_call_type_names()
 
     @pynvim.function("AjapopajaSetModel", sync=True)
