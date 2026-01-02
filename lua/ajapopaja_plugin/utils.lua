@@ -63,7 +63,7 @@ function M.format_prompt(prompt)
 		return ""
 	end
 	local prompt_string = prompt.title
-	if prompt.content ~= "" then
+	if prompt.content ~= nil and prompt.content ~= "" then
 		prompt_string = "# " .. prompt.title .. "\n\n" .. prompt.content
 	end
 	return prompt_string
