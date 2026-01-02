@@ -388,6 +388,9 @@ class AjapopajaPlugin(object):
             else:
                 uid = self.history_manager.remove_by_uid(call_type, uid)
                 self._persist_and_handle_error(call_type)
+                uids = self.history_manager.get_uids(call_type)
+                if not uid and uids:
+                    uid = uids[-1]
                 return uid
         except ValueError:
             self._show_error("Index must be a number")

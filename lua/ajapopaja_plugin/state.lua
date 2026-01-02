@@ -48,9 +48,35 @@ local function set_call_index_by_uid(call_type)
 	end
 end
 
-function M.sync_history()
+local sync_callbacks = {}
+
+function M.add_sync_callback(callback)
+	for _, existing_callback in ipairs(sync_callbacks) do
+		if existing_callback == callback then
+			return
+		end
+	end
+	table.insert(sync_callbacks, callback)
+end
+
+function M.remove_sync_callback(callback)
+	for i, existing_callback in ipairs(sync_callbacks) do
+		if existing_callback == callback then
+			table.remove(sync_callbacks, i)
+			return
+		end
+	end
+end
+
+local function call_all_sync_callbacks()
+	for _, callback in ipairs(sync_callbacks) do
+		callback()
+	end
+end
+
+function M.sync_history(update_index)
 	local uids = M.call_uids[M.selected_call_type]
-	local init = not uids or #uids == 0
+	local init = update_index or not uids or #uids == 0
 	if not M.call_types or #M.call_types == 0 then
 		M.call_types = vim.fn.AjapopajaGetCallTypes()
 	end
@@ -58,10 +84,10 @@ function M.sync_history()
 		update_history_uids(call_type, init)
 		if init then
 			M.selected_index[call_type] = #M.call_uids[call_type]
-		else
-			set_call_index_by_uid(call_type)
 		end
+		set_call_index_by_uid(call_type)
 	end
+	call_all_sync_callbacks()
 end
 
 function M.select_call_type(call_type)

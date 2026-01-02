@@ -16,7 +16,7 @@ function M.stop_loading()
 end
 
 function M.get_status()
-	return state.is_loading and ("󱚣 Ajapopaja: " .. state.current_model) or ""
+	return state.is_loading and ("󱚣 Ajapopaja: " .. state.current_model) or state.current_model
 end
 
 -- Command Wrappers
@@ -157,7 +157,6 @@ function M.setup()
 		{ silent = true, desc = "Ajapopaja: Transform selection" }
 	)
 	keymap({ "v", "n" }, "<leader>ar", M.ajapopaja_review, { silent = true, desc = "Ajapopaja: Review" })
-	-- Apply and insert transformations
 	keymap("n", "<leader>ap", M.ajapopaja_apply_latest, { desc = "Ajapopaja: Apply Latest Transformation" })
 	keymap(
 		{ "v", "n" },
@@ -165,7 +164,6 @@ function M.setup()
 		M.ajapopaja_insert_latest,
 		{ desc = "Ajapopaja: Insert/replace Latest Transformation" }
 	)
-	-- History and configuration
 	keymap("n", "<leader>aw", history.open, { desc = "Ajapopaja: Open history window" })
 	keymap("n", "<leader>am", M.ajapopaja_select_model, { desc = "Ajapopaja: Select LLM Model" })
 end

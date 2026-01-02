@@ -5,9 +5,24 @@ local M = {}
 
 local buf, win, prev_win
 local plugin
+local sync_callback
 
 function M.setup(plugin_ref)
 	plugin = plugin_ref
+end
+
+local function update_title()
+	local title_text = " Ajapopaja: "
+		.. state.selected_call_type
+		.. " ("
+		.. state.get_selected_index()
+		.. "/"
+		.. #state.call_uids[state.selected_call_type]
+		.. ") "
+	pcall(vim.api.nvim_win_set_config, win, {
+		title = { { title_text, "WhidHeader" } },
+		title_pos = "center",
+	})
 end
 
 function M.render()
@@ -62,17 +77,7 @@ function M.render()
 	vim.api.nvim_buf_set_lines(buf, 0, -1, false, content)
 	vim.api.nvim_set_option_value("modifiable", false, { buf = buf })
 
-	local title_text = " Ajapopaja: "
-		.. state.selected_call_type
-		.. " ("
-		.. state.get_selected_index()
-		.. "/"
-		.. #uids
-		.. ") "
-	pcall(vim.api.nvim_win_set_config, win, {
-		title = { { title_text, "WhidHeader" } },
-		title_pos = "center",
-	})
+	update_title()
 end
 
 local function refine()
@@ -105,6 +110,13 @@ local function refine_with_standard_prompt()
 	end
 end
 
+local function close_history_window()
+	vim.api.nvim_win_close(win, true)
+	if vim.api.nvim_win_is_valid(prev_win) then
+		vim.api.nvim_set_current_win(prev_win)
+	end
+end
+
 local function apply_transformation()
 	local uid = state.selected_uids[state.selected_call_type]
 	if uid == nil then
@@ -112,32 +124,18 @@ local function apply_transformation()
 	end
 	local item = vim.fn.AjapopajaGetHistoryItem(state.selected_call_type, uid)
 	if state.selected_call_type == "transform" and core.replace_in_buffer(item) then
-		vim.api.nvim_win_close(win, true)
+		close_history_window()
 	end
 end
 
 local function delete_current_item()
 	local uid = state.selected_uids[state.selected_call_type]
 	local new_uid = vim.fn.AjapopajaDeleteHistoryItem(state.selected_call_type, uid)
-	state.sync_history()
 	if new_uid ~= nil and type(new_uid) ~= "userdata" then
 		state.selected_uids[state.selected_call_type] = new_uid
-		vim.notify("new uid: " .. new_uid, vim.log.levels.INFO)
-	else
-		local uids = state.call_uids[state.selected_call_type]
-		if #uids > 0 then
-			vim.notify("setting last: " .. uids[1], vim.log.levels.INFO)
-			state.selected_uids[state.selected_call_type] = uids[#uids]
-		end
 	end
+	state.sync_history()
 	M.render()
-end
-
-local function close_history_window()
-	vim.api.nvim_win_close(win, true)
-	if vim.api.nvim_win_is_valid(prev_win) then
-		vim.api.nvim_set_current_win(prev_win)
-	end
 end
 
 local function select_call_type(call_type)
@@ -156,6 +154,16 @@ function M.open()
 	buf = vim.api.nvim_create_buf(false, true)
 	vim.api.nvim_set_option_value("filetype", "markdown", { buf = buf })
 	vim.api.nvim_set_option_value("readonly", true, { buf = buf })
+
+	sync_callback = sync_callback
+		or function()
+			if vim.api.nvim_win_is_valid(win) then
+				update_title()
+			else
+				state.remove_sync_callback(sync_callback)
+			end
+		end
+	state.add_sync_callback(sync_callback)
 
 	local w, h = math.ceil(vim.o.columns * 0.8), math.ceil(vim.o.lines * 0.8)
 	win = vim.api.nvim_open_win(buf, true, {
@@ -197,6 +205,17 @@ function M.open()
 	vim.keymap.set("n", "i", refine, map_opts)
 	vim.keymap.set("n", "<CR>", apply_transformation, map_opts)
 	vim.keymap.set("n", "q", close_history_window, map_opts)
+
+	vim.api.nvim_create_autocmd("BufWinLeave", {
+		buffer = buf,
+		once = true,
+		callback = function()
+			if sync_callback then
+				state.remove_sync_callback(sync_callback)
+			end
+		end,
+	})
+	-- render the window
 	M.render()
 end
 
