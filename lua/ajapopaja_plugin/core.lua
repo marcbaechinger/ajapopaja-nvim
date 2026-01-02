@@ -208,7 +208,7 @@ function M.transform(prompt, selection_info, code_lines)
 	state.is_loading = true
 	vim.cmd("redrawstatus")
 	local success, err =
-		pcall(vim.fn.AjapopajaAgentCall, table.concat(text_lines, "\n"), selection_info, "transform", prompt)
+		pcall(vim.fn.AjapopajaLlmCall, table.concat(text_lines, "\n"), selection_info, "transform", prompt)
 	if not success then
 		state.is_loading = false
 		vim.cmd("redrawstatus")

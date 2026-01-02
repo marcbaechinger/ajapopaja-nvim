@@ -1,13 +1,15 @@
-import re
-from uuid import uuid4
-import pynvim
 from pathlib import Path
-import textwrap
+from typing import Dict, Any, Optional
+from uuid import uuid4
+import aiohttp
+import asyncio
 import json
 import os
-import asyncio
-from agent_client.agent_client import AgentClient
-from typing import Dict, Any, Optional
+import pynvim
+import re
+import textwrap
+import threading
+import traceback
 
 
 def get_plugin_path() -> Path:
@@ -26,7 +28,13 @@ def get_plugin_path() -> Path:
     raise ValueError("plugin root not found")
 
 
-API_BASE_URL = "http://127.0.0.1:8000"
+OLLAMA_HOST = "http://localhost:11434"
+OLLAMA_CHAT_URI = OLLAMA_HOST + "/api/chat"
+OLLAMA_LIST_URI = OLLAMA_HOST + "/api/tags"
+
+AJAPOPAJA_URI = "http://localhost:8000"
+REQUEST_TIMEOUT_SECONDS = 60
+CONNECTION_TIMEOUT_SECONDS = 2
 HISTORY_DIR = os.path.expanduser("~/.ajapopaja/history/")
 CALL_TYPES_FILE = get_plugin_path() / "call_types/default.json"
 
@@ -161,6 +169,7 @@ class HistoryManager:
         """
         self.history_dir = history_dir
         self.history: Dict[str, list] = self._load_history(["transform", "review"])
+        self._lock = threading.Lock()
 
     def _load_history(self, call_types: list[str]) -> Dict[str, list]:
         """Loads interaction history from the local cache file.
@@ -200,16 +209,17 @@ class HistoryManager:
         Returns:
             Exception or None: Exception if save fails, None otherwise
         """
-        if call_type not in self.history:
-            self.history[call_type] = []
+        with self._lock:
+            if call_type not in self.history:
+                self.history[call_type] = []
 
-        self.history[call_type].append(item)
-        self.history[call_type] = self.history[call_type][-50:]
-        try:
-            self._persist_history(call_type)
-        except (IOError, TypeError) as e:
-            return e
-        return None
+            self.history[call_type].append(item)
+            self.history[call_type] = self.history[call_type][-50:]
+            try:
+                self._persist_history(call_type)
+            except (IOError, TypeError) as e:
+                return e
+            return None
 
     def get_uids(self, call_type: str) -> list[str]:
         """Retrieve all UIDs associated with a specific call type from the history.
@@ -220,9 +230,10 @@ class HistoryManager:
         Returns:
             list[str]: A list of UIDs corresponding to the specified call type.
         """
-        if call_type not in self.history:
-            return []
-        return [item["uid"] for item in self.history[call_type]]
+        with self._lock:
+            if call_type not in self.history:
+                return []
+            return [item["uid"] for item in self.history[call_type]]
 
     def remove_by_uid(self, call_type, uid):
         """Remove a call item from the specified call history by its unique identifier.
@@ -236,16 +247,17 @@ class HistoryManager:
                 the given index in the list or None if the removed item was the
                 last in the list.
         """
-        call_history = self.history[call_type]
-        index = -1
-        for i, item in enumerate(call_history):
-            if item["uid"] == uid:
-                index = i
-                break
-        if index >= 0 and index < len(call_history):
-            call_history.pop(index)
-            return call_history[index]["uid"] if index < len(call_history) else None
-        return None
+        with self._lock:
+            call_history = self.history[call_type]
+            index = -1
+            for i, item in enumerate(call_history):
+                if item["uid"] == uid:
+                    index = i
+                    break
+            if index >= 0 and index < len(call_history):
+                call_history.pop(index)
+                return call_history[index]["uid"] if index < len(call_history) else None
+            return None
 
 
 class FormatUtil:
@@ -301,7 +313,7 @@ class FormatUtil:
 @pynvim.plugin
 class AjapopajaPlugin(object):
     """
-    Neovim plugin for interacting with an LLM agent to assist with code editing tasks.
+    Neovim plugin for interacting with an LLM to assist with code editing tasks.
 
     This plugin provides functionality for:
     - Managing conversation history
@@ -318,12 +330,13 @@ class AjapopajaPlugin(object):
             vim: Neovim instance for communication with the editor
         """
         self.vim = vim
-        self.agent = AgentClient(API_BASE_URL)
-        self.agent_in_use = False
+        self.llm_in_use = False
         self.history_manager = HistoryManager(HISTORY_DIR)
         self.call_type_manager = CallTypeManager(CALL_TYPES_FILE)
         self.current_model = "qwen3-coder:30b"
         self.formatter = FormatUtil()
+        self._http_session = None
+        self._lock = asyncio.Lock()
 
     @pynvim.function("AjapopajaGetCallTypes", sync=True)
     def get_call_types(self, _) -> list[str]:
@@ -453,19 +466,19 @@ class AjapopajaPlugin(object):
             self._show_error(f"Unexpected error: {e}")
             return False
 
-    @pynvim.function("AjapopajaAgentCall", sync=False)
-    def call_agent(self, args) -> None:
+    @pynvim.function("AjapopajaLlmCall", sync=False)
+    def call_llm(self, args) -> None:
         """
         Entry point for Lua to trigger an asynchronous LLM request.
 
         Args:
             args: List containing [selected_text, selection_info, call_type, user_prompt]
         """
-        if self.agent_in_use:
-            self.vim.command("echo 'Ajapopaja: Agent busy. Please wait.'")
+        if self.llm_in_use:
+            self.vim.command("echo 'Ajapopaja: LLM busy. Please wait.'")
             return
-        elif len(args) < 4:
-            self.vim.command("echo 'Ajapopaja: missing arguments when calling agent'")
+        elif len(args) < 3:
+            self.vim.command("echo 'Ajapopaja: missing arguments when calling LLM'")
             return
 
         selected_text = args[0]
@@ -480,9 +493,9 @@ class AjapopajaPlugin(object):
             return
         config = call_types[call_type]
         model = self.current_model
-        self.agent_in_use = True
+        self.llm_in_use = True
         asyncio.create_task(
-            self._async_agent_call(
+            self._async_llm_call(
                 selected_text=selected_text,
                 selection_info=selection_info,
                 call_type=call_type,
@@ -493,7 +506,39 @@ class AjapopajaPlugin(object):
         )
         self.vim.command(f"echo '{config['prompt_sent_message']}'")
 
-    async def _async_agent_call(
+    async def _get_session(self):
+        if self._http_session is None or self._http_session.closed:
+            async with self._lock:
+                if self._http_session is None or self._http_session.closed:
+                    self._http_session = aiohttp.ClientSession(
+                        timeout=aiohttp.ClientTimeout(
+                            total=REQUEST_TIMEOUT_SECONDS,
+                            connect=CONNECTION_TIMEOUT_SECONDS,
+                        ),
+                        headers={"Content-Type": "application/json"},
+                    )
+        return self._http_session
+
+    async def _close_session(self):
+        """Properly shut down the session and its connector."""
+        async with self._lock:
+            if self._http_session is not None and not self._http_session.closed:
+                await self._http_session.close()
+                self._http_session = None
+
+    @pynvim.shutdown_hook
+    def on_shutdown(self):
+        if self._http_session and not self._http_session.closed:
+            try:
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    loop.create_task(self._close_session())
+                else:
+                    loop.run_until_complete(self._close_session())
+            except Exception:
+                pass
+
+    async def _async_llm_call(
         self,
         selected_text: str,
         selection_info: Dict[str, Any],
@@ -514,24 +559,37 @@ class AjapopajaPlugin(object):
             model: LLM model to use
         """
         try:
-            agent_uid, _ = await self.agent.create_agent(
-                "vim_agent",
-                config["system_instructions"],
-                agent_type="plain",
-                model=model,
-            )
-
-            if not agent_uid:
-                raise Exception("Failed to create agent session.")
-
             final_prompt = self.formatter.build_prompt(
                 user_prompt if user_prompt else config.get("prompt", ""),
                 selection_info["lang"],
                 selected_text,
             )
 
-            response = await self.agent.chat(final_prompt)
-            reply_text = response.reply
+            instructions = config["system_instructions"]
+            payload = {
+                "model": model,
+                "messages": [
+                    {"role": "system", "content": instructions},
+                    {"role": "user", "content": final_prompt},
+                ],
+                "stream": False,
+            }
+
+            session = await self._get_session()
+
+            async with session.post(OLLAMA_CHAT_URI, json=payload) as response:
+                if response.status >= 400:
+                    error_text = await response.text()
+                    raise Exception(f"HTTP {response.status}: {error_text}")
+
+                try:
+                    response_data = await response.json()
+                    if "message" in response_data:
+                        reply_text = response_data["message"]["content"]
+                    else:
+                        reply_text = "no message found"
+                except Exception as e:
+                    reply_text = f"error {str(e)}"
 
             if config.get("chomp"):
                 reply_text = textwrap.dedent(
@@ -554,27 +612,57 @@ class AjapopajaPlugin(object):
                 )
 
             def finalize():
-                self.agent_in_use = False
+                self.llm_in_use = False
                 self.vim.funcs.setreg(config["register"], reply_text, "v")
                 self.vim.exec_lua("require('ajapopaja_plugin').stop_loading()")
                 self.vim.command(f'echo "{config["response_received_message"]}"')
 
             self.vim.async_call(finalize)
 
+        except aiohttp.ClientError as e:
+            self._report_llm_error(
+                f"Ajapopaja: HTTP Error: {traceback.format_exception(e)}\n"
+            )
+        except TimeoutError:
+            self._report_llm_error(
+                f"Ajapopaja: Request timeout exeeded: {REQUEST_TIMEOUT_SECONDS} seconds\n"
+            )
         except Exception as e:
+            self._report_llm_error(
+                f"Ajapopaja: Unknown Error: {traceback.format_exception(e)}\n"
+            )
 
-            def on_error(err: str = str(e)) -> None:
-                self.agent_in_use = False
-                self.vim.exec_lua("require('ajapopaja_plugin').stop_loading()")
-                self.vim.err_write(f"Ajapopaja API Error: {str(err)}\n")
+    async def getAllModels(self):
+        try:
+            async with await self._get_session() as session:
+                async with session.get(OLLAMA_LIST_URI) as response:
+                    response.raise_for_status()
+                    data = await response.json()
+                    models = data.get("models", [])
+                    return sorted(models, key=lambda x: x.get("name", ""))
+        except aiohttp.ClientError as e:
+            self._report_llm_error(
+                f"Ajapopaja: Failed to fetch models: {str(e)}", end_llm_use=False
+            )
+        except KeyError as e:
+            self._report_llm_error(
+                f"Ajapopaja: Unexpected response format: {str(e)}", end_llm_use=False
+            )
+        except TimeoutError:
+            self._report_llm_error(
+                f"Ajapopaja: Request timeout exeeded: {REQUEST_TIMEOUT_SECONDS} seconds\n",
+                end_llm_use=False,
+            )
+        except Exception as e:
+            self._report_llm_error(f"Ajapopaja: Unexpected error: {str(e)}")
 
-            self.vim.async_call(on_error)
-        finally:
-            # Ensure agent is properly cleaned up
-            try:
-                await self.agent.release()
-            except Exception as e:
-                self._show_error(f"Releasing the agent failed: {e}")
+    def _report_llm_error(self, message: str, end_llm_use: bool = True):
+        def on_timeout_error() -> None:
+            if end_llm_use:
+                self.llm_in_use = False
+            self.vim.err_write(message)
+
+        self.vim.async_call(on_timeout_error)
 
     @pynvim.function("AjapopajaRpcHealth", sync=True)
     def health_check(self, _) -> list[str]:

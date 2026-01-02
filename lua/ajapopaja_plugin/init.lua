@@ -87,8 +87,7 @@ function M.ajapopaja_review()
 
 	state.is_loading = true
 	vim.cmd("redrawstatus")
-	local success, err =
-		pcall(vim.fn.AjapopajaAgentCall, table.concat(text_lines, "\n"), selection_info, "review", "Review this code")
+	local success, err = pcall(vim.fn.AjapopajaLlmCall, table.concat(text_lines, "\n"), selection_info, "review", "")
 	if not success then
 		state.is_loading = false
 		vim.cmd("redrawstatus")

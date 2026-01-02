@@ -1,4 +1,4 @@
 pynvim>=0.5.0
--e ../ajapopaja-server
+aiohttp
 
 pytest
