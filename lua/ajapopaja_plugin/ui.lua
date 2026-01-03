@@ -71,7 +71,13 @@ function M.create_multi_line_input(title, callback, filetype)
 	vim.keymap.set("n", "<CR>", submit, opts)
 	vim.keymap.set("n", "p", get_prompt, opts)
 	vim.keymap.set("n", "q", close_ui, opts)
-end
+	return {
+		buf = bufnr,
+		submit = submit,
+		close_ui = close_ui,
+		get_prompt = get_prompt,
+	}
+end -- create_multi_line_input
 
 function M.select_prompt(callback, filetype)
 	local prompts = prompt_lib.get_prompts(filetype)

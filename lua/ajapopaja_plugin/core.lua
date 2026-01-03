@@ -90,42 +90,53 @@ function M.insert_to_buffer(history_item)
 	end
 end
 
--- Capture selection coordinates for the entire buffer
-
+--- Captures the current context for selection operations.
+-- This function handles both Visual Line mode ('V') and Normal mode ('n'),
+-- returning a structured selection info object.
+--
+-- In Visual Line mode, it exits the mode to ensure accurate mark positions,
+-- then calculates the precise start and end coordinates of the selection.
+--
+-- In Normal mode, it returns the entire buffer range.
+--
+-- @return table|nil Selection information object or nil if unsupported mode
 function M.capture_context()
-	local mode = vim.api.nvim_get_mode().mode
+	local mode_info = vim.api.nvim_get_mode()
+	local mode = mode_info.mode
+	local buf = vim.api.nvim_get_current_buf()
+
+	-- We explicitly exclude 'v' (charwise) and '^V' (blockwise)
 	if mode ~= "V" and mode ~= "n" then
 		vim.notify("Only V-line or normal mode supported", vim.log.levels.WARN)
 		return nil
 	end
 
-	local buf = vim.api.nvim_get_current_buf()
 	if mode == "n" then
-		-- Return entire buffer selection in normal mode
+		-- Returns entire buffer range: 0, 0, line_count-1, last_line_len
 		local start_line, start_col, end_line, end_col = utils.get_entire_buffer_range(buf)
-		return create_selection_info(buf, {
-			start_line,
-			start_col,
-			end_line,
-			end_col,
-		})
+		return create_selection_info(buf, { start_line, start_col, end_line, end_col })
 	end
 
-	-- Capture the selection
+	-- Exit Visual Line mode to ensure marks '< and '> are updated.
 	local esc = vim.api.nvim_replace_termcodes("<Esc>", true, false, true)
-	vim.api.nvim_feedkeys(esc, "x", true)
+	vim.api.nvim_feedkeys(esc, "nx", true)
 
 	local s_pos = vim.fn.getpos("'<")
 	local e_pos = vim.fn.getpos("'>")
 
-	local start_line, start_col, end_line, end_col
-	if s_pos[2] < 1 then
-		start_line, start_col, end_line, end_col = utils.get_entire_buffer_range(buf)
-	else
-		start_line = s_pos[2] - 1
-		start_col = s_pos[3] - 1
-		end_line = e_pos[2] - 1
-		end_col = e_pos[3]
+	-- Convert 1-indexed getpos to 0-indexed API coordinates
+	local start_line = s_pos[2] - 1
+	local start_col = 0 -- In V-line mode, we always start at the beginning of the line
+	local end_line = e_pos[2] - 1
+
+	-- Even though it's V-line mode, we fetch the actual length of the last line
+	-- to provide a precise end_col for create_selection_info.
+	local line_content = vim.api.nvim_buf_get_lines(buf, end_line, end_line + 1, false)[1]
+	local end_col = line_content and #line_content or 0
+
+	if start_line < 0 then
+		local sl, sc, el, ec = utils.get_entire_buffer_range(buf)
+		return create_selection_info(buf, { sl, sc, el, ec })
 	end
 
 	return create_selection_info(buf, {

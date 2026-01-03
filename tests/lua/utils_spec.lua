@@ -100,7 +100,7 @@ describe("get_bufnr_from_path", function()
 	it("should get nil for a non-existing path", function()
 		local buf_nr = utils.get_bufnr_from_path("test_buf_not_existing", false)
 
-		assert.equals(buf_nr, nil)
+		assert.is_nil(buf_nr)
 	end)
 end)
 

@@ -12,6 +12,10 @@ end
 
 local prompt_root = get_plugin_path() .. "/prompts"
 
+function M.open_file(filepath)
+	return io.open(filepath, "r")
+end
+
 --- Parse a markdown file containing prompts into a list of prompt objects
 --- Each prompt is defined by a top-level heading (# Title) followed by content
 --- @param filepath string Path to the markdown file containing prompts
@@ -19,7 +23,7 @@ local prompt_root = get_plugin_path() .. "/prompts"
 --- @return table Error prompt if file cannot be opened
 function M.parse_markdown_prompts(filepath)
 	local prompts = {}
-	local file = io.open(filepath, "r")
+	local file = M.open_file(filepath)
 
 	if not file then
 		return {}, { { title = "Error", content = "Prompts file not found." } }
@@ -27,32 +31,39 @@ function M.parse_markdown_prompts(filepath)
 
 	local current_prompt = nil
 
-	for line in file:lines() do
-		local title = line:match("^#%s+(.+)$")
+	local success, err = pcall(function()
+		for line in file:lines() do
+			local title = line:match("^#%s+(.+)$")
 
-		if title then
-			if current_prompt then
-				table.insert(prompts, current_prompt)
-			end
-			current_prompt = {
-				title = title,
-				content = "",
-			}
-		elseif current_prompt then
-			if current_prompt.content == "" then
-				current_prompt.content = line
-			else
-				current_prompt.content = current_prompt.content .. "\n" .. line
+			if title then
+				if current_prompt then
+					table.insert(prompts, current_prompt)
+				end
+				current_prompt = {
+					title = title,
+					content = "",
+				}
+			elseif current_prompt then
+				if current_prompt.content == "" then
+					current_prompt.content = line
+				else
+					current_prompt.content = current_prompt.content .. "\n" .. line
+				end
 			end
 		end
-	end
 
-	if current_prompt then
-		current_prompt.content = vim.trim(current_prompt.content)
-		table.insert(prompts, current_prompt)
-	end
+		if current_prompt then
+			current_prompt.content = vim.trim(current_prompt.content)
+			table.insert(prompts, current_prompt)
+		end
+	end)
 
 	file:close()
+
+	if not success then
+		return {}, { { title = "Error", content = "Failed to parse prompts file: " .. tostring(err) } }
+	end
+
 	return prompts, {}
 end
 
