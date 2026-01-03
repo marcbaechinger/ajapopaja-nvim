@@ -6,7 +6,7 @@ from unittest.mock import patch
 
 import pytest
 
-from AjapopajaPlugin import (
+from helpers import (
     JsonFileHandler,
 )
 

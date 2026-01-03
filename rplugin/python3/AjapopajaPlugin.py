@@ -1,31 +1,14 @@
-from pathlib import Path
 from typing import Dict, Any, Optional
 from uuid import uuid4
 import aiohttp
 import asyncio
-import json
 import os
 import pynvim
-import re
 import textwrap
-import threading
 import traceback
 
-
-def get_plugin_path() -> Path:
-    """
-    Returns the absolute path to the root of the Neovim plugin.
-    Equivalent to the Lua runtime-file discovery.
-    """
-    current_file = Path(__file__).resolve()
-
-    try:
-        plugin_root = current_file.parents[2]
-        if plugin_root.exists():
-            return plugin_root
-    except IndexError as e:
-        raise e
-    raise ValueError("plugin root not found")
+from history import HistoryManager
+from helpers import CallTypeManager, FormatUtil, get_plugin_path
 
 
 OLLAMA_HOST = "http://localhost:11434"
@@ -37,277 +20,6 @@ REQUEST_TIMEOUT_SECONDS = 60
 CONNECTION_TIMEOUT_SECONDS = 2
 HISTORY_DIR = os.path.expanduser("~/.ajapopaja/history/")
 CALL_TYPES_FILE = get_plugin_path() / "call_types/default.json"
-
-
-class CallTypeManager:
-    """Manages call types loaded from a JSON file for configuration and lookup."""
-
-    def __init__(self, file_path: Path):
-        """Initialize the CallTypeManager with a file path.
-
-        Args:
-            file_path (Path): Path to the JSON file containing call type definitions
-        """
-        self.call_types = self._load_call_types(file_path)
-
-    def _load_call_types(self, file_path: Path) -> Dict[str, Any]:
-        """Load call types from a JSON file.
-
-        Args:
-            file_path (Path): Path to the JSON file containing call type definitions
-
-        Returns:
-            Dict[str, Any]: Dictionary containing all call type definitions
-
-        Raises:
-            FileNotFoundError: If the specified file does not exist
-            json.JSONDecodeError: If the file contains invalid JSON
-        """
-        try:
-            with open(file_path, "r") as file:
-                return json.load(file)
-        except FileNotFoundError as e:
-            raise e
-        except json.JSONDecodeError as e:
-            raise e
-
-    def get_call_type(self, call_type: str) -> Dict[str, Any]:
-        """Get a specific call type by name.
-
-        Args:
-            call_type (str): Name of the call type to retrieve
-
-        Returns:
-            Dict[str, Any]: Dictionary containing the call type definition,
-                           or empty dict if not found
-        """
-        return self.call_types.get(call_type, {})
-
-    def get_all_call_types(self) -> Dict[str, Any]:
-        """Get all call types.
-
-        Returns:
-            Dict[str, Any]: Dictionary containing all call type definitions
-        """
-        return self.call_types
-
-    def get_all_call_type_names(self) -> list[str]:
-        """Get all call type names.
-
-        Returns:
-            list[str]: List of all call type names
-        """
-        return list(self.call_types)
-
-
-class FilePathHelper:
-    """Helper class for file path operations."""
-
-    @staticmethod
-    def get_file_path(history_dir: str, call_type: str) -> Path:
-        """Construct the file path for a given call type.
-
-        Args:
-            history_dir (str): Path to the directory where JSON files are stored
-            call_type (str): Type of LLM call (transform, review, ...)
-
-        Returns:
-            Path: The constructed file path
-        """
-        return Path(history_dir) / f"{call_type}.json"
-
-
-class JsonFileHandler:
-    """Handles file operations."""
-
-    @staticmethod
-    def read_file(file_path: Path) -> list:
-        """Read and parse a JSON file.
-
-        Args:
-            file_path (Path): Path to the JSON file
-
-        Returns:
-            list: The parsed JSON data as a list
-        """
-        try:
-            with open(file_path, "r") as f:
-                return json.load(f)
-        except (json.JSONDecodeError, IOError):
-            return []
-
-    @staticmethod
-    def write_file(file_path: Path, data: list) -> None:
-        """Write data to a JSON file.
-
-        Args:
-            file_path (Path): Path to the JSON file
-            data (list): Data to be written to the file
-
-        Raises:
-            IOError: If failed to write to the history file
-            TypeError: If history data cannot be serialized to JSON
-        """
-        try:
-            os.makedirs(os.path.dirname(file_path), exist_ok=True)
-            with open(file_path, "w") as f:
-                json.dump(data, f)
-        except IOError as e:
-            raise IOError(f"Failed to write history file '{file_path}': {e}")
-        except TypeError as e:
-            raise TypeError(f"Failed to serialize history data: {e}")
-
-
-class HistoryManager:
-    """Manages loading and persisting interaction history."""
-
-    def __init__(self, history_dir: str) -> None:
-        """Initialize the HistoryManager with a specified history file path.
-
-        Args:
-            history_dir (str): Path to the directory where JSON files are stored
-        """
-        self.history_dir = history_dir
-        self.history: Dict[str, list] = self._load_history(["transform", "review"])
-        self._lock = threading.Lock()
-
-    def _load_history(self, call_types: list[str]) -> Dict[str, list]:
-        """Loads interaction history from the local cache file.
-
-        Args:
-            call_types (list[str]): List of call type identifiers to load history for
-
-        Returns:
-            dict: Dictionary mapping call type strings to lists of interaction records.
-        """
-        history = {}
-        for call_type in call_types:
-            file_path = FilePathHelper.get_file_path(self.history_dir, call_type)
-            history[call_type] = JsonFileHandler.read_file(file_path)
-        return history
-
-    def _persist_history(self, call_type: str) -> None:
-        """Helper to save the current history state to disk.
-
-        Args:
-            call_type: The type of LLM call (transform, review, ...)
-
-        Raises:
-            IOError: If failed to write to the history file
-            TypeError: If history data cannot be serialized to JSON
-        """
-        file_path = FilePathHelper.get_file_path(self.history_dir, call_type)
-        JsonFileHandler.write_file(file_path, self.history[call_type])
-
-    def save_history(self, call_type: str, item: Any) -> Optional[Exception]:
-        """Persists a new interaction and trims to the last 50 entries.
-
-        Args:
-            call_type (str): Type of interaction ('transform' or 'review')
-            item (any): The interaction item to be saved
-
-        Returns:
-            Exception or None: Exception if save fails, None otherwise
-        """
-        with self._lock:
-            if call_type not in self.history:
-                self.history[call_type] = []
-
-            self.history[call_type].append(item)
-            self.history[call_type] = self.history[call_type][-50:]
-            try:
-                self._persist_history(call_type)
-            except (IOError, TypeError) as e:
-                return e
-            return None
-
-    def get_uids(self, call_type: str) -> list[str]:
-        """Retrieve all UIDs associated with a specific call type from the history.
-
-        Args:
-            call_type (str): The type of call to retrieve UIDs for
-
-        Returns:
-            list[str]: A list of UIDs corresponding to the specified call type.
-        """
-        with self._lock:
-            if call_type not in self.history:
-                return []
-            return [item["uid"] for item in self.history[call_type]]
-
-    def remove_by_uid(self, call_type, uid):
-        """Remove a call item from the specified call history by its unique identifier.
-
-        Args:
-            call_type (str): The type of call history to search (e.g., 'transform' or 'review')
-            uid (str): The unique identifier of the call item to remove
-
-        Returns:
-            str or None: The UID of the call item that replaces the removed one at
-                the given index in the list or None if the removed item was the
-                last in the list.
-        """
-        with self._lock:
-            call_history = self.history[call_type]
-            index = -1
-            for i, item in enumerate(call_history):
-                if item["uid"] == uid:
-                    index = i
-                    break
-            if index >= 0 and index < len(call_history):
-                call_history.pop(index)
-                return call_history[index]["uid"] if index < len(call_history) else None
-            return None
-
-
-class FormatUtil:
-    """Handles building structured prompts with optional code blocks."""
-
-    @staticmethod
-    def build_prompt(prompt: str, lang: str, selected_code: str) -> str:
-        """Constructs a structured prompt with Markdown code blocks.
-
-        Args:
-            prompt (str): The main prompt text
-            lang (str): Language identifier for the code block (e.g., 'python', 'javascript')
-            selected_code (str): Text to be wrapped in a code block
-
-        Returns:
-            str: Combined prompt with optional code block
-        """
-        parts = []
-        if prompt:
-            parts.append(prompt)
-        if selected_code:
-            selected_code = textwrap.dedent(selected_code)
-            lang_label = lang if lang else ""
-            parts.append(f"\n\n```{lang_label}\n{selected_code}\n```")
-        return "".join(parts)
-
-    @staticmethod
-    def strip_code_fence(text: str) -> str:
-        """Removes Markdown code delimiters from LLM responses.
-
-        Args:
-            text (str): Text potentially containing Markdown code blocks
-
-        Returns:
-            str: Text with code delimiters removed, leaving only the content
-        """
-        lines = text.splitlines()
-        result = []
-        inside_code = False
-        has_fences = False
-        for line in lines:
-            if re.match("^`{3}[a-z]+\\s*$", line):
-                inside_code = True
-                has_fences = True
-            elif line.startswith("```"):
-                inside_code = not inside_code
-                has_fences = True
-            elif inside_code:
-                result.append(line)
-        return "\n".join(result if has_fences else lines)
 
 
 @pynvim.plugin
@@ -361,8 +73,22 @@ class AjapopajaPlugin(object):
 
     @pynvim.function("AjapopajaGetHistoryUids", sync=True)
     def get_history_uids(self, args) -> Optional[list[str]]:
-        call_type = args[0]
+        """Get UIDs from history manager for the specified call type.
 
+        Args:
+            args: List containing the call type as the first element
+
+        Returns:
+            List of UIDs if call_type is valid, None if invalid call_type
+
+        Example:
+            :call AjapopajaGetHistoryUids(['buffer'])
+        """
+        if len(args) < 1:
+            self._show_error("Missing argument call_type")
+            return None
+
+        call_type = args[0]
         if call_type not in self.history_manager.history:
             self._show_error("Invalid call_type")
             return None
@@ -391,6 +117,9 @@ class AjapopajaPlugin(object):
         Returns:
             str: The uid of the new item at the same index than the removed one.
         """
+        if len(args) < 2:
+            self._show_error("Missing argument")
+            return None
         try:
             call_type = args[0]
             uid = args[1]
@@ -419,7 +148,7 @@ class AjapopajaPlugin(object):
             bool: True if persistence was successful, False otherwise
         """
         try:
-            self.history_manager._persist_history(call_type)
+            self.history_manager.persist_history_locked(call_type)
             return True
         except Exception as e:
             self._show_error(
@@ -528,6 +257,21 @@ class AjapopajaPlugin(object):
 
     @pynvim.shutdown_hook
     def on_shutdown(self):
+        """Handle shutdown cleanup for the HTTP session.
+
+        This method gracefully closes the HTTP session when the application shuts down.
+        If the session exists and is not already closed, it attempts to close it properly
+        by either creating a task in the current event loop (if running) or running it
+        synchronously (if the loop is not running). Any exceptions during the closing
+        process are caught and ignored to prevent shutdown interruptions.
+
+        The method ensures proper resource cleanup by checking:
+        1. If the HTTP session exists
+        2. If the session is not already closed
+        3. Whether the event loop is running or needs synchronous execution
+
+        Note: Exceptions during session closing are suppressed to allow graceful shutdown.
+        """
         if self._http_session and not self._http_session.closed:
             try:
                 loop = asyncio.get_event_loop()
@@ -548,15 +292,28 @@ class AjapopajaPlugin(object):
         model: str,
     ) -> None:
         """
-        Handles the lifecycle of the LLM request and updates Neovim state.
+        Processes the LLM request and updates Neovim state.
+
+        This method constructs a prompt from the selected text and user input,
+        sends it to the configured LLM via Ollama, processes the response,
+        saves the interaction to history, and updates the Neovim UI with the result.
 
         Args:
-            selected_text: Text selected by the user
-            selection_info: Information about the selection (language, etc.)
-            call_type: Type of call being made
-            user_prompt: User-provided prompt
-            config: Configuration for the call type
-            model: LLM model to use
+            selected_text: Text selected by the user for processing
+            selection_info: Dictionary containing information about the selection including language
+            call_type: Type of call being made (e.g., 'transform', 'review')
+            user_prompt: User-provided prompt that overrides the default prompt
+            config: Configuration dictionary containing system instructions, register,
+                   response messages, and other call-specific settings
+            model: LLM model to use for the request
+
+        Raises:
+            aiohttp.ClientError: When HTTP request fails
+            TimeoutError: When request exceeds the configured timeout
+            Exception: For other unexpected errors during processing
+
+        Returns:
+            None: Updates Neovim state and history but doesn't return a value
         """
         try:
             final_prompt = self.formatter.build_prompt(
@@ -584,7 +341,10 @@ class AjapopajaPlugin(object):
 
                 try:
                     response_data = await response.json()
-                    if "message" in response_data:
+                    if (
+                        "message" in response_data
+                        and "content" in response_data["message"]
+                    ):
                         reply_text = response_data["message"]["content"]
                     else:
                         reply_text = "no message found"
@@ -633,6 +393,20 @@ class AjapopajaPlugin(object):
             )
 
     async def getAllModels(self):
+        """
+        Retrieve and sort all available models from the Ollama API.
+
+        Fetches the list of models from the Ollama service, sorts them by name,
+        and handles various error conditions gracefully.
+
+        Returns:
+            list: A sorted list of model dictionaries, or empty list if error occurs.
+
+        Raises:
+            aiohttp.ClientError: When network communication fails
+            KeyError: When response format is unexpected
+            TimeoutError: When request exceeds timeout limit
+        """
         try:
             async with await self._get_session() as session:
                 async with session.get(OLLAMA_LIST_URI) as response:

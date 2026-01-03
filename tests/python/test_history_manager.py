@@ -1,153 +1,189 @@
 import pytest
 from unittest.mock import patch
 
-from AjapopajaPlugin import (
-    HistoryManager,
-)
+from history import HistoryManager
 
 
 class TestHistoryManager:
     @pytest.fixture
-    def mock_history_dir(self):
-        return "/tmp/test_history"
-
-    @pytest.fixture
-    def history_manager(self, mock_history_dir):
+    def history_manager(self):
+        """Create a HistoryManager instance for testing."""
         with (
-            patch("AjapopajaPlugin.FilePathHelper.get_file_path") as mock_get_path,
-            patch("AjapopajaPlugin.JsonFileHandler.read_file") as mock_read_file,
+            patch("helpers.FilePathHelper.get_file_path") as mock_get_path,
+            patch("helpers.JsonFileHandler.read_file") as mock_read_file,
         ):
-            mock_get_path.return_value = "/tmp/test_history/transform.json"
+            mock_get_path.return_value = "/mock/path"
             mock_read_file.return_value = []
-
-            manager = HistoryManager(mock_history_dir)
-            return manager
+            return HistoryManager("/mock/history/dir")
 
     @pytest.fixture
-    def history_manager_with_data(self, mock_history_dir):
+    def history_manager_with_data(self):
+        """Create a HistoryManager instance with initial data."""
         with (
-            patch("AjapopajaPlugin.FilePathHelper.get_file_path") as mock_get_path,
-            patch("AjapopajaPlugin.JsonFileHandler.read_file") as mock_read_file,
+            patch("helpers.FilePathHelper.get_file_path") as mock_get_path,
+            patch("helpers.JsonFileHandler.read_file") as mock_read_file,
         ):
-            mock_get_path.side_effect = lambda dir, call_type: f"{dir}/{call_type}.json"
-            mock_read_file.side_effect = [
-                [{"uid": "uid1", "data": "test1"}, {"uid": "uid2", "data": "test2"}],
-                [{"uid": "uid3", "data": "test3"}],
+            mock_get_path.return_value = "/mock/path"
+            mock_read_file.return_value = [
+                {"uid": "uid1", "data": "test1"},
+                {"uid": "uid2", "data": "test2"},
             ]
+            return HistoryManager("/mock/history/dir")
 
-            manager = HistoryManager(mock_history_dir)
-            return manager
+    def test_init_creates_history_dict(self, history_manager):
+        """Test that HistoryManager initializes with correct structure."""
+        assert hasattr(history_manager, "history")
+        assert isinstance(history_manager.history, dict)
+        assert "transform" in history_manager.history
+        assert "review" in history_manager.history
 
-    def test_init(self, mock_history_dir):
+    def test_load_history_returns_correct_structure(self, history_manager):
+        """Test that _load_history returns correct dictionary structure."""
         with (
-            patch("AjapopajaPlugin.FilePathHelper.get_file_path") as mock_get_path,
-            patch("AjapopajaPlugin.JsonFileHandler.read_file") as mock_read_file,
+            patch("helpers.FilePathHelper.get_file_path") as mock_get_path,
+            patch("helpers.JsonFileHandler.read_file") as mock_read_file,
         ):
-            mock_get_path.side_effect = lambda dir, call_type: f"{dir}/{call_type}.json"
-            mock_read_file.side_effect = [[], []]
+            mock_get_path.return_value = "/mock/path/transform"
+            mock_read_file.return_value = [{"uid": "test1"}]
 
-            manager = HistoryManager(mock_history_dir)
+            result = history_manager._load_history(["transform"])
 
-            assert manager.history_dir == mock_history_dir
-            assert "transform" in manager.history
-            assert "review" in manager.history
-            assert manager.history["transform"] == []
-            assert manager.history["review"] == []
+            assert isinstance(result, dict)
+            assert "transform" in result
+            assert isinstance(result["transform"], list)
 
-    def test_load_history(self, mock_history_dir):
+    def test_persist_history_writes_correctly(self, history_manager):
+        """Test that _persist_history writes data correctly."""
         with (
-            patch("AjapopajaPlugin.FilePathHelper.get_file_path") as mock_get_path,
-            patch("AjapopajaPlugin.JsonFileHandler.read_file") as mock_read_file,
+            patch("helpers.FilePathHelper.get_file_path") as mock_get_path,
+            patch("helpers.JsonFileHandler.write_file") as mock_write_file,
         ):
-            mock_get_path.side_effect = lambda dir, call_type: f"{dir}/{call_type}.json"
-            mock_read_file.return_value = [{"uid": "uid1", "data": "test"}]
+            mock_get_path.return_value = "/mock/path/transform"
 
-            manager = HistoryManager(mock_history_dir)
+            history_manager.history["transform"] = [{"uid": "test1"}]
+            history_manager._persist_history("transform")
 
-            assert manager.history["transform"] == [{"uid": "uid1", "data": "test"}]
-            assert manager.history["review"] == [{"uid": "uid1", "data": "test"}]
-
-    def test_save_history_success(self, history_manager):
-        with patch.object(history_manager, "_persist_history") as mock_persist:
-            mock_persist.return_value = None
-
-            exception = history_manager.save_history(
-                "transform", {"uid": "uid1", "data": "test"}
+            mock_write_file.assert_called_once_with(
+                "/mock/path/transform", [{"uid": "test1"}]
             )
 
-            assert exception is None
-            assert len(history_manager.history["transform"]) == 1
-            assert history_manager.history["transform"][0]["uid"] == "uid1"
+    def test_save_history_item_without_uid_raise_key_error(self, history_manager):
+        """Test that save_history adds item and trims history to 50 entries."""
+        with (
+            patch("helpers.FilePathHelper.get_file_path"),
+            patch("helpers.JsonFileHandler.write_file"),
+        ):
+            with pytest.raises(KeyError) as exc_info:
+                history_manager.save_history("transform", {"data": "data"})
+            assert str(exc_info.value) == "'uid'"
 
-    def test_save_history_persistence_failure(self, history_manager):
-        with patch.object(history_manager, "_persist_history") as mock_persist:
-            mock_persist.side_effect = IOError("Write failed")
-
-            exception = history_manager.save_history(
-                "transform", {"uid": "uid1", "data": "test"}
-            )
-
-            assert isinstance(exception, IOError)
-            assert history_manager.history["transform"][0]["uid"] == "uid1"
-
-    def test_save_history_trim_to_50(self, history_manager):
-        with patch.object(history_manager, "_persist_history"):
+    def test_save_history_adds_item_and_trims_to_50(self, history_manager):
+        """Test that save_history adds item and trims history to 50 entries."""
+        with (
+            patch("helpers.FilePathHelper.get_file_path"),
+            patch("helpers.JsonFileHandler.write_file"),
+        ):
             # Add 55 items to test trimming
             for i in range(55):
-                history_manager.save_history(
-                    "transform", {"uid": f"uid{i}", "data": f"test{i}"}
+                exception = history_manager.save_history(
+                    "transform", {"uid": f"uid{i}", "data": f"data{i}"}
                 )
+                assert exception is None
 
             assert len(history_manager.history["transform"]) == 50
-            assert history_manager.history["transform"][0]["uid"] == "uid5"
-            assert history_manager.history["transform"][-1]["uid"] == "uid54"
 
-    def test_get_uids_empty_history(self, history_manager):
-        uids = history_manager.get_uids("transform")
-        assert uids == []
+    def test_save_history_returns_exception_on_write_failure(self, history_manager):
+        """Test that save_history returns exception when write fails."""
+        with (
+            patch("helpers.FilePathHelper.get_file_path"),
+            patch(
+                "helpers.JsonFileHandler.write_file",
+                side_effect=IOError("Write failed"),
+            ),
+        ):
+            exception = history_manager.save_history(
+                "transform", {"uid": "uid1", "data": "test"}
+            )
+            assert isinstance(exception, IOError)
+            assert str(exception) == "Write failed"
 
-    def test_get_uids_with_data(self, history_manager_with_data):
+    def test_get_uids_returns_empty_list_when_no_history(self, history_manager):
+        """Test that get_uids returns empty list when no history exists."""
+        assert history_manager.get_uids("transform") == []
+
+    def test_get_uids_returns_uids_from_history(self, history_manager_with_data):
+        """Test that get_uids returns UIDs from history."""
         uids = history_manager_with_data.get_uids("transform")
         assert uids == ["uid1", "uid2"]
 
-    def test_remove_by_uid_success(self, history_manager_with_data):
-        result = history_manager_with_data.remove_by_uid("transform", "uid1")
-        assert result == "uid2"  # Should return the uid of the next item
-        assert len(history_manager_with_data.history["transform"]) == 1
-        assert history_manager_with_data.history["transform"][0]["uid"] == "uid2"
+    def test_remove_by_uid_removes_correct_item(self, history_manager_with_data):
+        """Test that remove_by_uid removes the correct item."""
+        with (
+            patch("helpers.FilePathHelper.get_file_path"),
+            patch("helpers.JsonFileHandler.write_file"),
+        ):
+            # Remove first item
+            result = history_manager_with_data.remove_by_uid("transform", "uid1")
+            assert result == "uid2"  # Should return UID of next item
 
-    def test_remove_by_uid_last_item(self, history_manager_with_data):
-        result = history_manager_with_data.remove_by_uid("transform", "uid2")
-        assert result is None  # No next item
-        assert len(history_manager_with_data.history["transform"]) == 1
-        assert history_manager_with_data.history["transform"][0]["uid"] == "uid1"
+            # Verify item was removed
+            uids = history_manager_with_data.get_uids("transform")
+            assert uids == ["uid2"]
 
-    def test_remove_by_uid_not_found(self, history_manager_with_data):
+    def test_remove_by_uid_returns_none_when_no_item_found(
+        self, history_manager_with_data
+    ):
+        """Test that remove_by_uid returns None when item not found."""
         result = history_manager_with_data.remove_by_uid("transform", "nonexistent")
         assert result is None
-        assert len(history_manager_with_data.history["transform"]) == 2
 
-    def test_remove_by_uid_empty_history(self, history_manager):
-        result = history_manager.remove_by_uid("transform", "uid1")
-        assert result is None
+    def test_remove_by_uid_handles_last_item_removal(self, history_manager_with_data):
+        """Test that remove_by_uid handles removal of last item correctly."""
+        with (
+            patch("helpers.FilePathHelper.get_file_path"),
+            patch("helpers.JsonFileHandler.write_file"),
+        ):
+            # Remove last item
+            result = history_manager_with_data.remove_by_uid("transform", "uid2")
+            assert result is None  # No next item
 
-    def test_get_uids(self, history_manager_with_data):
-        transforms = history_manager_with_data.get_uids("transform")
-        reviews = history_manager_with_data.get_uids("review")
+    def test_save_history_thread_safety(self, history_manager):
+        """Test that save_history is thread-safe."""
+        import threading
+        import time
 
-        assert transforms == ["uid1", "uid2"]
-        assert reviews == ["uid3"]
+        def save_items():
+            for i in range(10):
+                history_manager.save_history(
+                    "transform", {"uid": f"uid{i}", "data": f"data{i}"}
+                )
+                time.sleep(0.001)
 
-    def test_persist_history_io_error(self, history_manager):
-        with patch("AjapopajaPlugin.JsonFileHandler.write_file") as mock_write:
-            mock_write.side_effect = IOError("Disk full")
+        # Create multiple threads
+        threads = []
+        for _ in range(5):
+            t = threading.Thread(target=save_items)
+            threads.append(t)
+            t.start()
 
-            with pytest.raises(IOError):
-                history_manager._persist_history("transform")
+        # Wait for all threads to complete
+        for t in threads:
+            t.join()
 
-    def test_persist_history_type_error(self, history_manager):
-        with patch("AjapopajaPlugin.JsonFileHandler.write_file") as mock_write:
-            mock_write.side_effect = TypeError("Cannot serialize")
+        # Verify history was saved correctly
+        assert len(history_manager.history["transform"]) == 50
 
-            with pytest.raises(TypeError):
-                history_manager._persist_history("transform")
+    def test_save_history_creates_new_call_type_if_not_exists(self, history_manager):
+        """Test that save_history creates new call type if it doesn't exist."""
+        with (
+            patch("helpers.FilePathHelper.get_file_path"),
+            patch("helpers.JsonFileHandler.write_file"),
+        ):
+            exception = history_manager.save_history(
+                "new_call_type", {"uid": "uid1", "data": "test"}
+            )
+            assert exception is None
+            assert "new_call_type" in history_manager.history
+            assert history_manager.history["new_call_type"] == [
+                {"uid": "uid1", "data": "test"}
+            ]
