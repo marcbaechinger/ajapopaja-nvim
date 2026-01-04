@@ -151,30 +151,29 @@ Ajapopaja maintains a persistent history of interactions.
 
 | Command                 | Description                                        |
 |-------------------------|----------------------------------------------------|
-| `:AjapopajaHistory`     | Open the history window                            |
 | `:AjapopajaBootstrap`   | Initialize the Python virtual environment          |
-| `:AjapopajaSelectModel` | Select the LLM to use                              |
-| `:AjapopajaRefreshModels` | Refresh the list of available LLMs               |
-| `:AjapopajaTransform`   | Transform selected text with a custom prompt       |
+| `:AjapopajaTransform`   | Open prompt window for selected text  |
 | `:AjapopajaSelectPrompt` | Select a standard prompt                          |
-| `:AjapopajaReview`      | Review selected text with a custom prompt          |
 | `:AjapopajaApplyLatest` | Apply the latest transformation                    |
 | `:AjapopajaInsertLatest` | Insert/replace with the latest transformation     |
+| `:AjapopajaReview`      | Review selected text                         |
+| `:AjapopajaHistory`     | Open the history window                            |
+| `:AjapopajaSelectModel` | Select the LLM to use                              |
+| `:AjapopajaRefreshModels` | Refresh the list of available LLMs               |
 | `:AjapopajaEditPrompts` | Open the prompt directory for editing            |
 
 ## Keybindings
 
-| Key        | Action                                                   |
-|------------|----------------------------------------------------------|
-| `<leader>at` | Apply the latest transformation                         |
-| `<leader>as` | Select from filetype-specific prompts                   |
-| `<leader>ai` | Prompt for transformation                               |
-| `<leader>ar` | Review selected text                                    |
-| `<leader>ap` | Insert/replace with the latest transformation           |
-| `<leader>ae` | Edit prompts (open prompt directory)                    |
-| `<leader>ah` | Open the history window                                 |
-| `<leader>am` | Select LLM                                              |
-| `<leader>aM` | Refresh list of LLMs                                    |
+| Key        | Mode | Action                                                                |
+|------------|------|--------------------------------------------------------------------|
+| `<leader>ai` | n, V | Prompt for transformation (`:AjapopajaTransform`)                       |
+| `<leader>as` | n, V | Select from filetype-specific prompts (`AjapopajaSelectPrompt`)         |
+| `<leader>at` | n    | Apply the latest transformation (`:AjapopajaApplyLatest`)               |
+| `<leader>ap` | n, V | Insert/replace with the latest transformation (`:AjapopajaInsertLatest`)|
+| `<leader>ah` | n    | Open the history window (`:AjapopajaHistory)                          |
+| `<leader>am` | n    | Select LLM (`:AjapopajaSelectModel`)                                    |
+| `<leader>aM` | n    | Refresh list of LLMs (`:AjapopajaRefreshModels`)                        |
+| `<leader>ae` | n    | Edit prompts (`:AjapopajaEditPrompts`)                                  |
 
 ## History Window
 
