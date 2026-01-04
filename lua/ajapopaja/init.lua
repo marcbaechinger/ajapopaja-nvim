@@ -162,6 +162,19 @@ end
 
 function M.setup(opts)
 	opts = opts or {}
+
+	-- boostrap Python venv
+	if not vim.g.python3_host_prog then
+		local plugin_path = vim.api.nvim_get_runtime_file("rplugin/python3/AjapopajaPlugin.py", false)[1]
+		if plugin_path then
+			local root = vim.fn.fnamemodify(plugin_path, ":h:h:h")
+			local venv_python = root .. "/.venv/bin/python3"
+			if vim.fn.executable(venv_python) == 1 then
+				vim.g.python3_host_prog = venv_python
+			end
+		end
+	end
+
 	vim.g.ajapopaja_ollama_host = opts.ollama_host or "http://localhost:11434"
 	history.setup(M)
 	local commands = {
@@ -184,7 +197,6 @@ function M.setup(opts)
 			range = true,
 		})
 	end
-
 	if opts.default_keymaps ~= false then
 		-- Register Default Keybindings
 		local keymap = vim.keymap.set
@@ -217,10 +229,21 @@ function M.setup(opts)
 		keymap("n", "<leader>ah", "<cmd>AjapopajaHistory<CR>", { desc = "Ajapopaja: Open history window" })
 		keymap("n", "<leader>am", "<cmd>AjapopajaSelectModel<CR>", { desc = "Ajapopaja: Select LLM" })
 		keymap("n", "<leader>aM", "<cmd>AjapopajaRefreshModels<CR>", { desc = "Ajapopaja: Refresh list of LLMs" })
+		vim.api.nvim_create_user_command("AjapopajaBootstrap", function()
+			require("ajapopaja.bootstrap").bootstrap()
+		end, {})
 	end
-	vim.schedule(function()
-		M.refresh_models()
-	end)
+
+	local rpc_ready, err_msg = require("ajapopaja.health").can_call_rpc()
+	if rpc_ready then
+		vim.schedule(function()
+			pcall(M.refresh_models)
+		end)
+	else
+		vim.schedule(function()
+			vim.notify("Ajapopaja: " .. err_msg, vim.log.levels.INFO)
+		end)
+	end
 end
 
 return M

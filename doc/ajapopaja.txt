@@ -38,23 +38,56 @@ ensure the Neovim UI remains responsive during generation.
 ==============================================================================
 2. INSTALLATION                                           *ajapopaja-install*
 
-Requires:
-- Neovim >= 0.9.0
-- Python 3.10+ with `pynvim` and `aiohttp`
+REQUIRES ~
+- Neovim >= 0.10.0 (Recommended)
+- Python 3.10+
 - Ollama (running locally or accessible via network)
 
+PLUGIN SETUP ~
 Using lazy.nvim:
 >lua
     {
-        "your-username/ajapopaja",
+        "marcbaechinger/ajapopaja-vim",
         build = ":UpdateRemotePlugins",
         config = function()
             require("ajapopaja").setup({
-                ollama_host = "http://localhost:11434"
+                -- Optional: defaults to http://localhost:11434
+                ollama_host = "http://localhost:11434" 
             })
         end
     }
 <
+
+POST-INSTALLATION STEPS ~
+Ajapopaja requires a dedicated Python virtual environment containing 
+`pynvim` and `aiohttp`. To set this up:
+
+1.  PROVISION ENVIRONMENT:
+    Run the following command within Neovim:
+    >vim
+        :AjapopajaBootstrap
+    <
+    This creates a `.venv` folder inside the plugin directory and 
+    installs all necessary Python dependencies asynchronously.
+
+2.  SYNC RPC MANIFEST:
+    After the bootstrap finishes, run:
+    >vim
+        :UpdateRemotePlugins
+    <
+
+3.  RESTART NEOVIM:
+    A full restart is required to initialize the new Python RPC host.
+
+
+
+VERIFYING THE INSTALLATION ~
+You can verify that everything is correctly configured by running:
+>vim
+    :checkhealth ajapopaja
+<
+The health check will validate your Python provider path, Ollama 
+connectivity, and RPC function registration.
 
 ==============================================================================
 3. CONFIGURATION                                           *ajapopaja-config*
@@ -73,14 +106,12 @@ required to initialize commands and background model refreshing.
 <
 
 GLOBAL VARIABLES ~
-
 *g:ajapopaja_ollama_host*
     The host address for the Ollama API. This variable is set by the 
     `setup()` function but can be manually overridden if needed for 
     specific RPC calls.
 
 LUALINE INTEGRATION ~
-
 Ajapopaja provides a `get_status()` function that indicates the current 
 active model and a loading spinner (󱚣) when the LLM is processing a 
 request.
