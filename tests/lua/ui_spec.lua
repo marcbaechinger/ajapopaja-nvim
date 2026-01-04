@@ -102,7 +102,6 @@ describe("create_multi_line_input", function()
 		local multi_line_input = ui.create_multi_line_input(function(prompt)
 			captured_prompt = prompt
 		end, "python")
-		vim.api.nvim_buf_set_lines(multi_line_input.buf, 0, -1, false, { "aaa", "111", "   " })
 		multi_line_input.get_prompt()
 
 		multi_line_input.submit()
