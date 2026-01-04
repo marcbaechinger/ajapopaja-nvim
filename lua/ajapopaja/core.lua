@@ -1,3 +1,6 @@
+-- Copyright (c) 2026 Marc Baechinger
+-- Licensed under the MIT License.
+
 local state = require("ajapopaja.state")
 local utils = require("ajapopaja.utils")
 local M = {}

@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Marc Baechinger
+# Licensed under the MIT License.
+
 rows = [
     {"name": "Marc", "profession": "Software engineer", "nationality": "Switzerland"},
     {"name": "Marc", "profession": "Software engineer", "nationality": "Switzerland"},

@@ -1,3 +1,6 @@
+-- Copyright (c) 2026 Marc Baechinger
+-- Licensed under the MIT License.
+
 local core = require("ajapopaja.core")
 local assert = require("luassert")
 

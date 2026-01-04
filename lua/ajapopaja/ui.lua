@@ -1,3 +1,6 @@
+-- Copyright (c) 2026 Marc Baechinger
+-- Licensed under the MIT License.
+
 local M = {}
 local prompt_lib = require("ajapopaja.prompt_library")
 local utils = require("ajapopaja.utils")

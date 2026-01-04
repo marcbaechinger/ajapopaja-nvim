@@ -1,3 +1,6 @@
+-- Copyright (c) 2026 Marc Baechinger
+-- Licensed under the MIT License.
+
 local prompts =
 	{ { title = "Mock Prompt 1", content = "content 1" }, { title = "Mock Prompt 2", content = "content 2" } }
 local mock_prompt_lib = {

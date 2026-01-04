@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Marc Baechinger
+# Licensed under the MIT License.
+
 import json
 import pytest
 from pathlib import Path

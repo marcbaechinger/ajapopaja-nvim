@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Marc Baechinger
+# Licensed under the MIT License.
+
 import threading
 from typing import Dict, Any, Optional
 from uuid import uuid4

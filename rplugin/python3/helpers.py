@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Marc Baechinger
+# Licensed under the MIT License.
+
 from pathlib import Path
 from typing import Dict, Any
 import json
