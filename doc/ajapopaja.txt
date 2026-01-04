@@ -141,7 +141,7 @@ TRANSFORMING CODE ~
     the result to the initial selection. Alternatively, use `<leader>ap` to
     insert at the current cursor position or to replace the current selection.
 
-When in the free text prompt window, '<leader>p' opens the prompt picker
+When in the free text prompt window, '<leader>as' opens the prompt picker
 to insert a standard prompt from the select dialog.
 
 The last transformation result is also copied to the register 'c' and can 

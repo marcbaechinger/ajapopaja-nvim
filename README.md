@@ -128,7 +128,7 @@ require("lualine").setup({
 3. In the free form prompt window, enter your transformation request (e.g., "Refactor this into a class"). Press `<CR>` in normal mode to prompt.
 4. The LLM processes the request. Once finished, use `<leader>at` to apply the transformation result to the initial selection. Alternatively, use `<leader>ap` to paste at the current cursor position in normal mode or to replace the current selection in visual mode.
 
-When in the free text prompt window, '<leader>p' opens the prompt picker
+When in the free text prompt window, `<leader>as` opens the prompt picker
 to insert a standard prompt from the select dialog.
 
 The last transformation result is also copied to the register 'c' and can be inserted with "cp.
