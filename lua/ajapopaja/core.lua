@@ -100,10 +100,24 @@ end
 -- In Normal mode, it returns the entire buffer range.
 --
 -- @return table|nil Selection information object or nil if unsupported mode
-function M.capture_context()
+function M.capture_context(command_opts)
+	local buf = vim.api.nvim_get_current_buf()
+	if command_opts and command_opts.range > 0 then
+		local start_line = command_opts.line1 - 1
+		local end_line = command_opts.line2 - 1
+
+		local lines = vim.api.nvim_buf_get_lines(buf, end_line, end_line + 1, false)
+		local end_col = (lines and lines[1]) and #lines[1] or 0
+
+		return create_selection_info(buf, {
+			start_line,
+			0, -- Start at col 0 for line-based ranges
+			end_line,
+			end_col,
+		})
+	end
 	local mode_info = vim.api.nvim_get_mode()
 	local mode = mode_info.mode
-	local buf = vim.api.nvim_get_current_buf()
 
 	-- We explicitly exclude 'v' (charwise) and '^V' (blockwise)
 	if mode ~= "V" and mode ~= "n" then

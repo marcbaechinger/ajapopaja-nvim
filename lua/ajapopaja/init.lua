@@ -25,7 +25,7 @@ function M.available_models_loaded()
 	state.available_models = vim.fn.AjapopajaGetAvailableModels()
 	state.is_fetching_models = false
 	vim.notify(
-		"Ajapopaja: LLM list fetched. Number of available models:" .. #state.available_models,
+		"Ajapopaja: LLM list fetched. Number of available models: " .. #state.available_models,
 		vim.log.levels.INFO,
 		{ title = "Ajapopaja" }
 	)
@@ -54,8 +54,8 @@ function M.ajapopaja_select_model()
 	end, state.current_model)
 end
 
-function M.ajapopaja_select_prompt()
-	local selection = core.capture_context()
+function M.ajapopaja_select_prompt(command_opts)
+	local selection = core.capture_context(command_opts)
 	if not selection then
 		return
 	end
@@ -66,8 +66,8 @@ function M.ajapopaja_select_prompt()
 	end, filetype)
 end
 
-function M.ajapopaja_transform()
-	local selection_info = core.capture_context()
+function M.ajapopaja_transform(command_opts)
+	local selection_info = core.capture_context(command_opts)
 	if not selection_info then
 		return
 	end
@@ -91,8 +91,8 @@ function M.ajapopaja_iterate_with_multiline_prompt(history_item)
 	end, history_item.selection_info.lang)
 end
 
-function M.ajapopaja_review()
-	local selection_info = core.capture_context()
+function M.ajapopaja_review(command_opts)
+	local selection_info = core.capture_context(command_opts)
 	if not selection_info then
 		return
 	end
@@ -177,7 +177,9 @@ function M.setup(opts)
 	}
 
 	for name, fn in pairs(commands) do
-		vim.api.nvim_create_user_command(name, fn, {
+		vim.api.nvim_create_user_command(name, function(options)
+			fn(options)
+		end, {
 			desc = "Ajapopaja: " .. name,
 			range = true,
 		})
