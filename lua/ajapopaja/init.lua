@@ -183,6 +183,7 @@ function M.setup(opts)
 		M.ajapopaja_insert_latest,
 		{ desc = "Ajapopaja: Insert/replace Latest Transformation" }
 	)
+	keymap("n", "<leader>ae", open_prompt_directory, { desc = "Ajapopaja: Edit prompts (open prompt dir)" })
 	keymap("n", "<leader>ah", history.open, { desc = "Ajapopaja: Open history window" })
 	keymap("n", "<leader>am", M.ajapopaja_select_model, { desc = "Ajapopaja: Select LLM Model" })
 end

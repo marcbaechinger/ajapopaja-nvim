@@ -169,6 +169,7 @@ The following default mappings are provided by `setup()`:
 | <leader>ap  | n, v  | Paste (insert/replace) the latest transformation   |
 | <leader>ah  | n     | Open the History Window                            |
 | <leader>am  | n     | Change the LLM Model                               |
+| <leader>ae  | n     | Edit standard prompts (opens prompt directory)     |
 
 ==============================================================================
 7. HISTORY MANAGEMENT                                    *ajapopaja-history*
