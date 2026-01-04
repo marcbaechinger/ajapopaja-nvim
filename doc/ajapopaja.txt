@@ -44,9 +44,9 @@ REQUIRES ~
 - Ollama (running locally or accessible via network)
 
 PLUGIN SETUP ~
-Using lazy.nvim:
+Using lazy.nvim add  `~/.config/nvim/lua/plugins/ajapopaja.lua`:
 >lua
-    {
+    return {
         "marcbaechinger/ajapopaja-nvim",
         build = ":UpdateRemotePlugins",
         config = function()
@@ -57,7 +57,6 @@ Using lazy.nvim:
         end
     }
 <
-
 POST-INSTALLATION STEPS ~
 Ajapopaja requires a dedicated Python virtual environment containing 
 `pynvim` and `aiohttp`. To set this up:
@@ -70,16 +69,8 @@ Ajapopaja requires a dedicated Python virtual environment containing
     This creates a `.venv` folder inside the plugin directory and 
     installs all necessary Python dependencies asynchronously.
 
-2.  SYNC RPC MANIFEST:
-    After the bootstrap finishes, run:
-    >vim
-        :UpdateRemotePlugins
-    <
-
-3.  RESTART NEOVIM:
+2.  RESTART NEOVIM:
     A full restart is required to initialize the new Python RPC host.
-
-
 
 VERIFYING THE INSTALLATION ~
 You can verify that everything is correctly configured by running:

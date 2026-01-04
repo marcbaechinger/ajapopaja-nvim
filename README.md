@@ -34,8 +34,10 @@ All LLM calls are handled asynchronously using a Python-based RPC backend to ens
 
 ### Plugin Setup (lazy.nvim)
 
+When using lazy.nvim add  `~/.config/nvim/lua/plugins/ajapopaja.lua` and restart nvim:
+
 ```lua
-{
+return {
     "marcbaechinger/ajapopaja-nvim",
     build = ":UpdateRemotePlugins",
     config = function()
@@ -60,14 +62,7 @@ Ajapopaja requires a dedicated Python virtual environment containing `pynvim` an
 
    This creates a `.venv` folder inside the plugin directory and installs all necessary Python dependencies asynchronously.
 
-2. **Sync RPC Manifest**:
-   After the bootstrap finishes, run:
-
-   ```
-   :UpdateRemotePlugins
-   ```
-
-3. **Restart Neovim**:
+2. **Restart Neovim**:
    A full restart is required to initialize the new Python RPC host.
 
 ### Verifying Installation
