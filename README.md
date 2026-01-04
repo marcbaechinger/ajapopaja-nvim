@@ -145,7 +145,6 @@ Ajapopaja maintains a persistent history of interactions.
 - The history window allows you to preview responses before applying them.
 - Persistent storage is managed by the Python backend in `~/.ajapopaja/`.
 
-```markdown
 ## Commands
 
 | Command                 | Description                                        |
@@ -174,7 +173,6 @@ Ajapopaja maintains a persistent history of interactions.
 | `<leader>ah` | Open the history window                                 |
 | `<leader>am` | Select LLM                                              |
 | `<leader>aM` | Refresh list of LLMs                                    |
-```
 
 ## History Window
 
