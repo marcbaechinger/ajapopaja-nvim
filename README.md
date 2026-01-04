@@ -124,11 +124,16 @@ require("lualine").setup({
 ### Transforming Code
 
 1. Select a block of code in Visual Line Mode (V-line) or stay in Normal Mode for the whole buffer.
-2. Press `<leader>at` (free text transformation prompt) or `<leader>as` (select standard prompt).
+2. Press `<leader>ai` (free text transformation prompt) or `<leader>as` (select standard prompt).
 3. In the free form prompt window, enter your transformation request (e.g., "Refactor this into a class"). Press `<CR>` in normal mode to prompt.
-4. The LLM processes the request. Once finished, use `<leader>ap` to apply the result to the initial selection. Alternatively, use `<leader>ai` to insert at the current cursor position or to replace the current selection.
+4. The LLM processes the request. Once finished, use `<leader>at` to apply the transformation result to the initial selection. Alternatively, use `<leader>ap` to paste at the current cursor position in normal mode or to replace the current selection in visual mode.
 
-Note: When `<leader>ap` is used the original selection is only replaced if the selection content wasn't change in the mean time. In such a case, use `<leader>ai` to replace the current visual selection or insert at the cursor position normal mode.
+When in the free text prompt window, '<leader>p' opens the prompt picker
+to insert a standard prompt from the select dialog.
+
+The last transformation result is also copied to the register 'c' and can be inserted with "cp.
+
+Note: When `<leader>at` is used the original selection is only replaced if the selection content wasn't change in the mean time. In such a case, use `<leader>ap` to replace the current visual selection or insert at the cursor position normal mode.
 
 ### Iterate on a History Item
 

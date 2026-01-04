@@ -133,22 +133,28 @@ Recommended `lualine.nvim` configuration:
 TRANSFORMING CODE ~
 1.  Select a block of code in Visual Line Mode (V-line) or stay in Normal
     Mode for the whole buffer.
-2.  Press `<leader>at` (free text transformation prompt) or `<leader>as` (select
+2.  Press `<leader>ai` (free text transformation prompt) or `<leader>as` (select
     standard prompt).
 3.  In the free form prompt window, enter your transformation request (e.g.,
     "Refactor this into a class"). Press <CR> in normal mode to prompt.
-4.  The LLM processes the request. Once finished, use `<leader>ap` to apply
-    the result to the initial selection. Alternatively, use `<leader>ai` to
+4.  The LLM processes the request. Once finished, use `<leader>at` to apply
+    the result to the initial selection. Alternatively, use `<leader>ap` to
     insert at the current cursor position or to replace the current selection.
 
-Note: When `<leader>ap` is used the original selection is only replaced if the
-selection content wasn't change in the mean time. In such a case, use
-`<leader>ai` to replace the current visual selection or insert at the cursor
-position normal mode.
+When in the free text prompt window, '<leader>p' opens the prompt picker
+to insert a standard prompt from the select dialog.
+
+The last transformation result is also copied to the register 'c' and can 
+inserted with `"cp`.
+
+Note: When `<leader>at` is used to override the original selection the plugin
+prevents applying the tranformation if the content in the initial selection
+has changed in the mean time. In such a case, use `<leader>ap` to replace
+the current visual selection or insert at the cursor position normal mode.
 
 ITERATE ON A HISTORY ITEM ~
 After a transformation, the resulting code can be inspected in the history
-window (`<leader>aw`). Use [i/I] to iterate on the result and prompt the LLM
+window (`<leader>ah`). Use [i/I] to iterate on the result and prompt the LLM
 to refine the output. When prompting a refinement, the result is appended to
 the history as a new transformation result pointing to the original selection
 for replacement.
@@ -156,7 +162,7 @@ for replacement.
 REVIEWING CODE ~
 1.  Select code and press `<leader>ar`.
 2.  The review will be generated and stored in the history.
-3.  Access the review via the history window (`<leader>aw`).
+3.  Access the review via the history window (`<leader>ai`).
 
 ==============================================================================
 5. COMMANDS                                               *ajapopaja-commands*
@@ -314,11 +320,10 @@ When you trigger the prompt selection UI (`<leader>as`):
 
 CUSTOMIZING PROMPTS ~
 To add your own prompts, simply create a Markdown file named after the 
-language's filetype in the plugin's `prompts/` directory. If you are using 
-a plugin manager like `lazy.nvim`, you can find this path via:
->lua
-    print(vim.api.nvim_get_runtime_file("prompts/default.md", false)[1])
-<
+language's filetype in the plugin's `prompts/` directory.
+
+Use `<leader>ae` or `:AjapopajaEditPrompts` to open the prompt directory in
+nvim.
 
 ==============================================================================
 vim:tw=78:ts=8:ft=help:norl:

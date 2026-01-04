@@ -83,7 +83,7 @@ end)
 describe("create_multi_line_input", function()
 	it("should pass all lines of the buffer on submit", function()
 		local captured_prompt = nil
-		local multi_line_input = ui.create_multi_line_input("title", function(prompt)
+		local multi_line_input = ui.create_multi_line_input(function(prompt)
 			captured_prompt = prompt
 		end, "python")
 		vim.api.nvim_buf_set_lines(multi_line_input.buf, 0, -1, false, { "aaa", "111", "   " })
@@ -99,7 +99,7 @@ describe("create_multi_line_input", function()
 			callback("Mock Prompt 1")
 		end
 		local captured_prompt = nil
-		local multi_line_input = ui.create_multi_line_input("title", function(prompt)
+		local multi_line_input = ui.create_multi_line_input(function(prompt)
 			captured_prompt = prompt
 		end, "python")
 		vim.api.nvim_buf_set_lines(multi_line_input.buf, 0, -1, false, { "aaa", "111", "   " })
@@ -114,7 +114,7 @@ describe("create_multi_line_input", function()
 
 	it("should not call 'submit' callback on close_ui", function()
 		local captured_prompt = nil
-		local multi_line_input = ui.create_multi_line_input("title", function(prompt)
+		local multi_line_input = ui.create_multi_line_input(function(prompt)
 			captured_prompt = prompt
 		end, "python")
 		vim.api.nvim_buf_set_lines(multi_line_input.buf, 0, -1, false, { "aaa", "111", "   " })
@@ -126,7 +126,7 @@ describe("create_multi_line_input", function()
 
 	it("should set window nr back to previous window on close_ui", function()
 		local current_win = vim.api.nvim_get_current_win()
-		local multi_line_input = ui.create_multi_line_input("title", function() end, "python")
+		local multi_line_input = ui.create_multi_line_input(function() end, "python")
 		vim.api.nvim_buf_set_lines(multi_line_input.buf, 0, -1, false, { "aaa", "111", "   " })
 
 		assert.is_not.are_same(current_win, vim.api.nvim_get_current_win())
@@ -138,7 +138,7 @@ describe("create_multi_line_input", function()
 
 	it("should set window nr back to previous window on submit", function()
 		local current_win = vim.api.nvim_get_current_win()
-		local multi_line_input = ui.create_multi_line_input("title", function() end, "python")
+		local multi_line_input = ui.create_multi_line_input(function() end, "python")
 		vim.api.nvim_buf_set_lines(multi_line_input.buf, 0, -1, false, { "aaa", "111", "   " })
 
 		assert.is_not.are_same(current_win, vim.api.nvim_get_current_win())

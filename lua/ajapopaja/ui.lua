@@ -5,7 +5,7 @@ local M = {}
 local prompt_lib = require("ajapopaja.prompt_library")
 local utils = require("ajapopaja.utils")
 
-function M.create_multi_line_input(title, callback, filetype)
+function M.create_multi_line_input(callback, filetype)
 	local prev_win = vim.api.nvim_get_current_win()
 	local bufnr = vim.api.nvim_create_buf(false, true)
 	vim.bo[bufnr].filetype = "markdown"
@@ -21,7 +21,7 @@ function M.create_multi_line_input(title, callback, filetype)
 		col = math.floor((vim.o.columns - width) / 2),
 		style = "minimal",
 		border = "rounded",
-		title = { { " " .. title .. " (Markdown) ", "FloatTitle" } },
+		title = { { "Transformation prompt (<leader>as for standard prompts, <CR> to submit)", "FloatTitle" } },
 		title_pos = "center",
 	}
 
@@ -60,7 +60,22 @@ function M.create_multi_line_input(title, callback, filetype)
 				if not prompt then
 					return
 				end
-				vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, vim.split(utils.format_prompt(prompt), "\n"))
+				local formatted_prompt = utils.format_prompt(prompt)
+				local lines = vim.split(formatted_prompt, "\n")
+				local cursor = vim.api.nvim_win_get_cursor(0)
+				local row = cursor[1]
+				local is_empty = (
+					vim.api.nvim_buf_line_count(bufnr) == 1
+					and vim.api.nvim_buf_get_lines(bufnr, 0, 1, false)[1] == ""
+				)
+				if is_empty then
+					vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, lines)
+					pcall(vim.api.nvim_win_set_cursor, 0, { #lines, 0 })
+				else
+					vim.api.nvim_buf_set_lines(bufnr, row - 1, row - 1, false, lines)
+					pcall(vim.api.nvim_win_set_cursor, 0, { row - 1 + #lines, 0 })
+				end
+
 				if vim.api.nvim_win_is_valid(winnr) then
 					vim.api.nvim_set_current_win(winnr)
 					vim.cmd("startinsert!")
@@ -72,7 +87,11 @@ function M.create_multi_line_input(title, callback, filetype)
 	local opts = { buffer = bufnr, silent = true }
 	vim.keymap.set("i", "<C-s>", submit, opts)
 	vim.keymap.set("n", "<CR>", submit, opts)
-	vim.keymap.set("n", "p", get_prompt, opts)
+	vim.keymap.set("n", "<leader>as", get_prompt, {
+		buffer = bufnr,
+		silent = true,
+		desc = "Ajapopaja: Insert standard prompt",
+	})
 	vim.keymap.set("n", "q", close_ui, opts)
 	return {
 		buf = bufnr,

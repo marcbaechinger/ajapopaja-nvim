@@ -74,7 +74,7 @@ function M.ajapopaja_transform(command_opts)
 	if not selection_info then
 		return
 	end
-	ui.create_multi_line_input("Describe transformation...", function(lines)
+	ui.create_multi_line_input(function(lines)
 		local prompt = table.concat(lines, "\n")
 		if prompt ~= "" then
 			core.transform(prompt, selection_info)
@@ -86,7 +86,7 @@ function M.ajapopaja_iterate_with_multiline_prompt(history_item)
 	if not history_item.selection_info then
 		return
 	end
-	ui.create_multi_line_input("Describe transformation...", function(lines)
+	ui.create_multi_line_input(function(lines)
 		local prompt = table.concat(lines, "\n")
 		if prompt ~= "" then
 			core.transform(prompt, history_item.selection_info, vim.split(history_item.response, "\n"))
