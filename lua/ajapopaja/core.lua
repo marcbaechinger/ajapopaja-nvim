@@ -1,5 +1,5 @@
-local state = require("ajapopaja_plugin.state")
-local utils = require("ajapopaja_plugin.utils")
+local state = require("ajapopaja.state")
+local utils = require("ajapopaja.utils")
 local M = {}
 
 local visual_char = "v"

@@ -1,6 +1,6 @@
-local state = require("ajapopaja_plugin.state")
-local core = require("ajapopaja_plugin.core")
-local ui = require("ajapopaja_plugin.ui")
+local state = require("ajapopaja.state")
+local core = require("ajapopaja.core")
+local ui = require("ajapopaja.ui")
 local M = {}
 
 local buf, win, prev_win

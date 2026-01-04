@@ -1,41 +1,79 @@
-# Add code comments for edge cases
+# Refactor Logic
 
-# Add comments explaining complex logic
+Rewrite the following selection to be cleaner and more efficient. Output only the improved code/markup with no preamble.
 
-# Add configuration options
+# Optimize Performance
 
-# Add error handling and validation
+Identify algorithmic inefficiencies in this block and provide a faster implementation. Ensure the functional logic remains identical.
 
-# Add input validation and sanitization
+# Add Documentation
 
-# Add logging and debugging information
+Inject language-appropriate documentation (comments/docstrings) directly into the code. Output the full block including the new documentation.
 
-# Add or improve documentation
+# Modularize Block
 
-# Add type hints or annotations
+Extract the logic into a more modular structure (e.g., functions or components) suitable for the current context. Output only the resulting code.
 
-# Complete the parts that are missing implementation
+# Error Handling Wrap
 
-# Convert to use appropriate design patterns
+Wrap the current logic in a robust error-handling structure (try/catch or equivalent). Ensure the original logic is preserved inside the block.
 
-# Convert to use modern language features
+# Simplify Conditionals
 
-# Create a unit test class that tests this functionality thoroughly
+Flatten nested if-else structures or complex switch/match cases into a more readable format. Output the refactored code.
 
-# Create unit test functions that tests this functionality thoroughly
+# Modernize Syntax
 
-# Fix typos
+Update the selection to use the most modern syntax available for this file format. Output only the code.
 
-# Implement proper exception handling
+# Extract Constants
 
-# Implement proper resource management
+Identify hardcoded values and move them to a configuration or constant section at the top of the selection.
 
-# Implement this function
+# Boilerplate Removal
 
-# Improve code structure and organization
+Identify and strip away redundant or unnecessary code paths while maintaining the core functionality.
 
-# Improve variable and function naming
+# Standardize Formatting
 
-# Optimize for performance
+Apply consistent indentation, spacing, and naming conventions to the selected block.
 
-# Refactor to improve code readability
+# Fix Logical Bugs
+
+Analyze the code for common errors (off-by-one, null references, etc.) and output the corrected version of the block.
+
+# Implement Interface
+
+Assuming the selection describes a requirement or an interface, generate a concrete implementation in the same language style.
+
+# Convert to Table
+
+If the selection is a list of data, reformat it into the most appropriate code structure (e.g., Markdown table, JSON array, or constant list).
+
+# Rename Symbols
+
+Improve the naming of all variables and functions within this selection to be more descriptive. Output the modified block.
+
+# Add Logging
+
+Inject structured logging calls into the logic to track execution flow and important variable states.
+
+# Secure Implementation
+
+Refactor the selection to follow security best practices (e.g., input sanitization, avoiding unsafe eval).
+
+# Type Inference
+
+Where possible, add explicit type definitions or annotations to the code based on the current logic.
+
+# Invert Logic
+
+Invert the conditional logic (e.g., change 'if-else' to 'if-return early') to reduce nesting depth.
+
+# Normalize Quotes
+
+Standardize the use of single vs double quotes and template literals across the selection.
+
+# Complete Implementation
+
+If the selection contains "TODO" comments or partial logic, provide a full, working implementation of the missing parts.

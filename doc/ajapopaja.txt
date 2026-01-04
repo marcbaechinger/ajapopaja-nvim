@@ -1,110 +1,276 @@
-*ajapopaja.txt* For Neovim version 0.10+      Last change: 2025 Dec 29
+*ajapopaja.txt* LLM-powered code transformation for Neovim
 
 ==============================================================================
 AJAPOPAJA                                                          *ajapopaja*
 
-A sophisticated Neovim interface for LLM-powered code transformations and
-reviews, featuring asynchronous Python RPC execution and history management.
+A Neovim plugin designed to interface with local LLMs (via Ollama) for
+asynchronous code transformation, review, and history management.
 
-                                 Type |gO| to see the table of contents.
-
-==============================================================================
-INTRODUCTION                                             *ajapopaja-intro*
-
-Ajapopaja provides a bridge between your Neovim buffers and Python-based
-Large Language Model (LLM) APIs. It allows for context-aware refactoring,
-documentation generation, and code review.
-
-Key Features:
-- Asynchronous processing (non-blocking UI).
-- Interactive multi-line prompt windows.
-- Persistent history management of LLM outputs.
-- Syntax-aware operations for Python, JS, Java, Kotlin, Lua, HTML, and CSS.
+                                 Maintainer: Marc Baechinger
+                                 License: MIT
 
 ==============================================================================
-USAGE                                                    *ajapopaja-usage*
+CONTENTS                                                  *ajapopaja-contents*
 
-Ajapopaja operates primarily on visual selections or the current cursor
-context. 
-
-Commands:
-
-:AjapopajaHistory                                         *:AjapopajaHistory*
-    Opens the history browser to view and reuse past LLM outputs.
-
-:AjapopajaSelectModel                                 *:AjapopajaSelectModel*
-    Opens a picker to switch between available LLM models.
-
-:AjapopajaApplyLatest                                 *:AjapopajaApplyLatest*
-    Automatically applies the most recent code transformation to the buffer.
+    1. Introduction ................................ |ajapopaja-intro|
+    2. Installation ................................ |ajapopaja-install|
+    3. Configuration ............................... |ajapopaja-config|
+    4. Usage ....................................... |ajapopaja-usage|
+    5. Commands .................................... |ajapopaja-commands|
+    6. Keybindings ................................. |ajapopaja-mappings|
+    7. History Management .......................... |ajapopaja-history|
 
 ==============================================================================
-KEYBINDINGS                                        *ajapopaja-keybindings*
+1. INTRODUCTION                                             *ajapopaja-intro*
 
-The following default keybindings are registered upon calling `setup()`.
-Most bindings are prefixed with `<leader>a`.
+|ajapopaja| provides a bridge between your Neovim buffer and Large Language
+Models. It specializes in two main workflows:
 
-NORMAL & VISUAL MODE ~
+1.  Code Transformation: Modify selected code based on natural language or
+    predefined prompts. Iterate on LLM responses. Replace the original selection
+    with the transformation result or insert at cursor position.
+2.  Code Review: Provide actional feedback on code quality and logic and LLM
+    prompts to resolve identified issues.
 
-If a command exepcts a selection and is called in normal mode, the envire
-buffer is selected.
-
-<leader>at      Open a multi-line input window to describe a custom
-                transformation for the current selection.
-<leader>ar      Perform an LLM code review of the selection.
-<leader>ai      Insert/Replace latest transformation from history (replaces
-                selection).
-
-VISUAL MODE ONLY ~
-
-<leader>ad      Add or improve documentation (docstrings/comments).
-<leader>af      Implement function: Completes the missing implementation 
-                for a function stub or class.
-<leader>au      Generate comprehensive unit tests for the selected logic.
-
-NORMAL MODE ONLY ~
-
-<leader>aw      Open the history manager window.
-<leader>am      Select the active LLM model.
-<leader>ap      Apply the latest transformation from history (replaces text).
+All LLM calls are handled asynchronously using a Python-based RPC backend to
+ensure the Neovim UI remains responsive during generation.
 
 ==============================================================================
-CONFIGURATION                                      *ajapopaja-config*
+2. INSTALLATION                                           *ajapopaja-install*
 
-To initialize the plugin, add the following to your `init.lua`:
+Requires:
+- Neovim >= 0.9.0
+- Python 3.10+ with `pynvim` and `aiohttp`
+- Ollama (running locally or accessible via network)
 
+Using lazy.nvim:
 >lua
-    require('ajapopaja').setup()
+    {
+        "your-username/ajapopaja",
+        build = ":UpdateRemotePlugins",
+        config = function()
+            require("ajapopaja").setup({
+                ollama_host = "http://localhost:11434"
+            })
+        end
+    }
 <
 
-Note: The plugin requires a Python RPC host configured. Ensure your Python
-environment has the necessary dependencies installed for the agent.
+==============================================================================
+3. CONFIGURATION                                           *ajapopaja-config*
+
+The plugin is configured via the `setup()` function:
+
+>lua
+    require("ajapopaja").setup({
+        -- The URL where Ollama is running
+        ollama_host = "http://localhost:11434", -- default
+    })
+<
+
+Global Variables:
+*g:ajapopaja_ollama_host*
+    The host address for the Ollama API. Overrides default if set.
+
+LUA LINE INTERGRATION
+>lua
+  require("lualine").setup({
+    sections = {
+      lualine_x = {
+        {
+          function()
+            return require("ajapopaja").get_status()
+          end,
+          color = { fg = "#ff9e64" },
+        },
+        "encoding",
+        "fileformat",
+        "filetype",
+      },
+    },
+  })
+<
+==============================================================================
+4. USAGE                                                   *ajapopaja-usage*
+
+TRANSFORMING CODE ~
+1.  Select a block of code in Visual Line Mode (V-line) or stay in Normal
+    Mode for the whole buffer.
+2.  Press `<leader>at` (free text transformation prompt) or `<leader>as` (select
+    standard prompt).
+3.  In the free form prompt window, enter your transformation request (e.g.,
+    "Refactor this into a class"). Press <CR> in normal mode to prompt.
+4.  The LLM processes the request. Once finished, use `<leader>ap` to apply
+    the result to the initial selection. Alternatively, use `<leader>ai` to
+    insert at the current cursor position or to replace the current selection.
+
+Note: When `<leader>ap` is used the original selection is only replaced if the
+selection content wasn't change in the mean time. In such a case, use
+`<leader>ai` to replace the current visual selection or insert at the cursor
+position normal mode.
+
+ITERATE ON A HISTORY ITEM ~
+After a transformation, the resulting code can be inspected in the history
+window (`<leader>aw`). Use [i/I] to iterate on the result and prompt the LLM
+to refine the output. When prompting a refinement, the result is appended to
+the history as a new transformation result pointing to the original selection
+for replacement.
+
+REVIEWING CODE ~
+1.  Select code and press `<leader>ar`.
+2.  The review will be generated and stored in the history.
+3.  Access the review via the history window (`<leader>aw`).
 
 ==============================================================================
-API                                                       *ajapopaja-api*
+5. COMMANDS                                               *ajapopaja-commands*
 
-M.setup()                                                 *ajapopaja.setup()*
-    Initializes commands and keymaps.
+*:AjapopajaHistory*
+    Opens the floating history window to browse, manage, and iterate on past 
+    LLM interactions. See |ajapopaja-history-window| for controls.
 
-M.create_multi_line_input({title}, {callback}) *ajapopaja.create_multi_line_input()*
-    Opens a floating Markdown buffer for prompt entry. Explicitly restores
-    window focus to the calling buffer upon submission or exit.
+*:AjapopajaSelectModel*
+    Queries the Ollama API for available models and opens a selection UI to 
+    set the active model for the current session.
 
-M.select({prompt}, {options}, {callback}, {current})      *ajapopaja.select()*
-    A wrapper around |vim.ui.select| that ensures the current option is
-    prioritized and the UI event loop is scheduled correctly via 
-    |vim.schedule|.
+*:AjapopajaTransform*
+    Prompts for a multi-line natural language instruction to transform the 
+    current selection or buffer. Results are stored in the "transform" history.
+
+*:AjapopajaSelectPrompt*
+    Opens a list of language-specific predefined prompts from the library.
+    See |ajapopaja-prompts| for details on how to customize these.
+
+*:AjapopajaReview*
+    Sends the current selection to the LLM for a code review based on the 
+    active model's capabilities. Results are stored in the "review" history.
+
+*:AjapopajaApplyLatest*
+    An immediate action command. Replaces the text that was originally 
+    selected for the most recent transformation with the LLM's output.
+
+*:AjapopajaInsertLatest*
+    An immediate action command. Inserts the result of the most recent 
+    transformation at the current cursor position without replacing text.
 
 ==============================================================================
-FAQ                                                        *ajapopaja-faq*
+6. KEYBINDINGS                                           *ajapopaja-mappings*
 
-Q: How do I change the model?
-A: Use `<leader>am` or `:AjapopajaSelectModel`.
+The following default mappings are provided by `setup()`:
+
+| Key         | Mode  | Description                                        |
+|-------------|-------|----------------------------------------------------|
+| <leader>as  | n, v  | Select a standard prompt from library              |
+| <leader>at  | n, v  | Open multi-line input for custom transformation    |
+| <leader>ar  | n, v  | Trigger code review                                |
+| <leader>ap  | n     | Apply latest transformation to buffer              |
+| <leader>ai  | n, v  | Insert/Replace with latest transformation          |
+| <leader>aw  | n     | Open the History Window                             |
+| <leader>am  | n     | Change the LLM Model                               |
 
 ==============================================================================
-AUTHORS                                                *ajapopaja-authors*
+7. HISTORY MANAGEMENT                                    *ajapopaja-history*
 
-VIM AI Plugin Distinguished Engineer
+Ajapopaja maintains a persistent history of interactions. 
+
+- History items are categorized by "call type" (transform, review).
+- The history window allows you to preview responses before applying them.
+- Persistent storage is managed by the Python backend in `~/.ajapopaja/`.
+
+==============================================================================
+8. THE HISTORY WINDOW                                     *ajapopaja-history-window*
+
+The History Window is a sophisticated, interactive interface designed for 
+browsing, managing, and applying past LLM interactions. It can be triggered 
+via |:AjapopajaHistory| or the default mapping `<leader>aw`.
+
+The window is rendered as a centered floating buffer using Markdown for 
+clear formatting and syntax highlighting of code responses.
+
+INTERACTION MODES ~
+
+The window operates in two primary modes, which can be toggled:
+- **Transform**: For code refactors and modifications.
+- **Review**: For textual feedback and code analysis.
+
+NAVIGATION & CONTROLS ~
+
+The following buffer-local mappings are active within the history window:
+
+| Key     | Action                                                            |
+|---------|-------------------------------------------------------------------|
+| l       | Navigate to the next history item                                 |
+| h       | Navigate to the previous history item                             |
+| t       | Switch view to "Transform" history                                |
+| r       | Switch view to "Review" history                                   |
+| i       | Iterate: Trigger a custom refinement on the current item          |
+| I       | Standard Refine: Use a library prompt to refine the current item  |
+| x       | Delete the current history entry                                  |
+| C       | Clear all history for the current view (Transform or Review)      |
+| <CR>    | Apply: (Transform only) Replace buffer text with this result      |
+| q       | Close the history window                                          |
+
+WORKFLOW: ITERATION ~
+
+One of the most powerful features of the History Window is the ability to 
+"refine" or "iterate" on a previous output. By pressing `i`, you can 
+provide additional instructions to the LLM based on its previous response. 
+The plugin automatically handles the context transfer, ensuring the model 
+understands the current state of the code transformation.
+
+WINDOW DYNAMICS ~
+
+- **Auto-Sync**: The window's title and content automatically update if 
+  history changes in the background.
+- **Visuals**: Uses `rounded` borders and calculates dimensions (80% of 
+  editor width/height) dynamically to fit your workspace.
+- **Cleanup**: When closing the window (`q`), your cursor is automatically 
+  returned to the original window (`prev_win`).
+
+==============================================================================
+8. PROMPT LIBRARY                                         *ajapopaja-prompts*
+
+Ajapopaja uses a filetype-aware prompt library. This allows you to define 
+specialized instructions for different programming languages.
+
+PROMPT STORAGE ~
+Prompts are stored as Markdown files in the `/prompts` directory of the 
+plugin root:
+    - `default.md`    (Fallback for any filetype)
+    - `python.md`     (Python specific prompts)
+    - `javascript.md` (JavaScript specific prompts)
+    - `lua.md`        (Lua specific prompts)
+
+MARKDOWN FORMAT ~
+Each file contains one or more prompts. A prompt starts with a top-level 
+heading (`#`) which acts as the title displayed in the selection UI. All 
+text following the heading until the next heading is treated as the prompt 
+content.
+
+Example `python.md`:
+>markdown
+    # Add Docstring
+    Write a Google-style docstring for this Python function. 
+    Include Args, Returns, and Raises sections.
+
+    # Refactor to Type Hints
+    Add PEP 484 type hints to this code. Ensure all function 
+    signatures and variables are explicitly typed.
+<
+BEHAVIOR AND FALLBACKS ~
+When you trigger the prompt selection UI (`<leader>as`):
+1.  The plugin detects the current buffer's 'filetype'.
+2.  It looks for a corresponding `.md` file in the `/prompts` directory.
+3.  If the specific file does not exist, it falls back to `default.md`.
+4.  Prompts are cached in memory after the first read to ensure the UI 
+    remains snappy.
+
+CUSTOMIZING PROMPTS ~
+To add your own prompts, simply create a Markdown file named after the 
+language's filetype in the plugin's `prompts/` directory. If you are using 
+a plugin manager like `lazy.nvim`, you can find this path via:
+>lua
+    print(vim.api.nvim_get_runtime_file("prompts/default.md", false)[1])
+<
 
 ==============================================================================
 vim:tw=78:ts=8:ft=help:norl:

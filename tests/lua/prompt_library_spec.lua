@@ -1,4 +1,4 @@
-local prompt_library = require("ajapopaja_plugin.prompt_library")
+local prompt_library = require("ajapopaja.prompt_library")
 
 local original_open = prompt_library.open_file
 describe("parse_markdown_prompts", function()

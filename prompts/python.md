@@ -1,47 +1,83 @@
-# Add code comments for edge cases
+# Add Type Hints
 
-# Add comments explaining complex logic
+Refactor the following code to include PEP 484 type hints. Ensure function signatures and complex variables are explicitly typed.
 
-# Add configuration options
+# Generate Docstring
 
-# Add error handling and validation
+Create a Google-style docstring for this code. Include Sections for Args, Returns, and Raises.
 
-# Add input validation and sanitization
+# Pythonic Refactor
 
-# Add logging and debugging information
+Rewrite this code to be more "Pythonic". Use list comprehensions, generators, or built-in functions where appropriate.
 
-# Add or improve doc strings
+# Pydantic Model
 
-# Add type hints or annotations
+Convert this dictionary or class structure into a Pydantic v2 Model with appropriate field validation.
 
-# Complete the parts that are missing implementation
+# Asyncify
 
-# Convert to use appropriate design patterns
+Convert these synchronous functions to asynchronous using `async/await` and recommend `httpx` or `aiohttp` if networking is involved.
 
-# Convert to use modern language features
+# Fastapi Endpoint
 
-# Create a unit test class that tests this functionality thoroughly
+Convert this logic into a FastAPI route handler, including dependency injection and response models.
 
-# Create a unit test class to test the functionality thoroughly (use pytest)
+# Add Logging
 
-# Create test functions to test the functionality thoroughly (use pytest)
+Inject structured logging using the standard `logging` library. Ensure errors are logged with stack traces.
 
-# Create unit test functions that tests this functionality thoroughly
+# Optimize Performance
 
-# Fix typos
+Identify bottlenecks in this Python code and refactor for speed, perhaps using `itertools` or better algorithmic complexity.
 
-# Implement proper exception handling
+# Exception Handling
 
-# Implement proper resource management
+Improve the error handling logic. Replace broad `except Exception:` blocks with specific exceptions and meaningful error messages.
 
-# Implement this function
+# Pytest Generator
 
-# Improve code structure and organization
+Write a comprehensive suite of pytest unit tests for this code, including mocks for external dependencies.
 
-# Improve variable and function naming
+# Sort Imports
 
-# Optimize for performance
+Reorganize imports according to PEP 8 (Standard library, Third-party, Local).
 
-# Refactor to improve code readability
+# SQLModel Conversion
 
-# Rename 'a' to 'b'
+Transform this class into a SQLModel class for database interaction.
+
+# Convert to Dataclass
+
+Refactor this boilerplate-heavy class into a Python `dataclass`.
+
+# Security Audit
+
+Review this Python code for common vulnerabilities like SQL injection, unsafe deserialization, or hardcoded secrets.
+
+# Remove Dead Code
+
+Identify and remove unused variables, imports, or unreachable code paths.
+
+# CLI with Typer
+
+Convert this script into a professional CLI tool using the `typer` library.
+
+# Implement Decorator
+
+Extract the repetitive logic in this code into a reusable Python decorator.
+
+# Context Manager
+
+Refactor the resource handling in this code to use a `with` statement and a context manager.
+
+# Protocol Definition
+
+Define a `typing.Protocol` that matches the structural interface of this class.
+
+# Refactor to Match-Case
+
+If applicable, refactor the nested if-else logic to use Python 3.10+ `match-case` syntax.
+
+# Complete the implementation
+
+Complete the implementation of this code. Create efficient and well structured and readable code.

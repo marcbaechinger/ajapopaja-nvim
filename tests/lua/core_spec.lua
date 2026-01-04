@@ -1,4 +1,4 @@
-local core = require("ajapopaja_plugin.core")
+local core = require("ajapopaja.core")
 local assert = require("luassert")
 
 describe("capture_context", function()

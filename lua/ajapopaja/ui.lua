@@ -1,6 +1,6 @@
 local M = {}
-local prompt_lib = require("ajapopaja_plugin.prompt_library")
-local utils = require("ajapopaja_plugin.utils")
+local prompt_lib = require("ajapopaja.prompt_library")
+local utils = require("ajapopaja.utils")
 
 function M.create_multi_line_input(title, callback, filetype)
 	local prev_win = vim.api.nvim_get_current_win()

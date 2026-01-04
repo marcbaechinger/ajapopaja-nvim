@@ -12,6 +12,8 @@ Review the code provided by the user and propose exactly three changes. You must
 
 * Maintainability & Design Patterns: Technical debt, coupled logic, or "code smells."
 
+Provide actionable feedback as a refactoring instruction for a coding LLM.
+
 ## Output Format
 
 Your response must be formatted strictly as follows:
@@ -40,7 +42,7 @@ Severity: [High/Medium/Low]
 
 **Refactoring Instructions for LLM**
 
-[Instructional prompt for a secondary LLM.]
+[Instructional prompt for a LLM.]
 
 ## Proposal 3: [Title of the identified problem]
 
@@ -52,4 +54,4 @@ Severity: [High/Medium/Low]
 
 **Refactoring Instructions for LLM**
 
-[Instructional prompt for a secondary LLM.]
+[Instructional prompt for a LLM.]

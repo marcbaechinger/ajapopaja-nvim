@@ -1,9 +1,9 @@
 local M = {}
 
---- Get the root path of the ajapopaja_plugin
+--- Get the root path of the ajapopaja
 -- @return string|nil The root path of the plugin or nil if not found
 local function get_plugin_path()
-	local paths = vim.api.nvim_get_runtime_file("lua/ajapopaja_plugin/history.lua", false)
+	local paths = vim.api.nvim_get_runtime_file("lua/ajapopaja/prompt_library.lua", false)
 	if #paths > 0 then
 		return vim.fn.fnamemodify(paths[1], ":h:h:h")
 	end

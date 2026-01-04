@@ -50,6 +50,22 @@ class AjapopajaPlugin(object):
         self._http_session = None
         self._lock = asyncio.Lock()
 
+    @property
+    def ollama_host(self) -> str:
+        """
+        Retrieves the Ollama host from Neovim global variables or returns default.
+        """
+        # Checks for g:ajapopaja_ollama_host
+        return self.vim.vars.get("ajapopaja_ollama_host", "http://localhost:11434")
+
+    @property
+    def ollama_chat_uri(self) -> str:
+        return f"{self.ollama_host.rstrip('/')}/api/chat"
+
+    @property
+    def ollama_list_uri(self) -> str:
+        return f"{self.ollama_host.rstrip('/')}/api/tags"
+
     @pynvim.function("AjapopajaGetCallTypes", sync=True)
     def get_call_types(self, _) -> list[str]:
         return self.call_type_manager.get_all_call_type_names()
@@ -231,6 +247,7 @@ class AjapopajaPlugin(object):
                 user_prompt=user_prompt,
                 config=config,
                 model=model,
+                ollama_chat_uri=self.ollama_chat_uri,
             )
         )
         self.vim.command(f"echo '{config['prompt_sent_message']}'")
@@ -290,6 +307,7 @@ class AjapopajaPlugin(object):
         user_prompt: str,
         config: Dict[str, Any],
         model: str,
+        ollama_chat_uri: str,
     ) -> None:
         """
         Processes the LLM request and updates Neovim state.
@@ -334,7 +352,7 @@ class AjapopajaPlugin(object):
 
             session = await self._get_session()
 
-            async with session.post(OLLAMA_CHAT_URI, json=payload) as response:
+            async with session.post(ollama_chat_uri, json=payload) as response:
                 if response.status >= 400:
                     error_text = await response.text()
                     raise Exception(f"HTTP {response.status}: {error_text}")
@@ -374,7 +392,7 @@ class AjapopajaPlugin(object):
             def finalize():
                 self.llm_in_use = False
                 self.vim.funcs.setreg(config["register"], reply_text, "v")
-                self.vim.exec_lua("require('ajapopaja_plugin').stop_loading()")
+                self.vim.exec_lua("require('ajapopaja').stop_loading()")
                 self.vim.command(f'echo "{config["response_received_message"]}"')
 
             self.vim.async_call(finalize)
@@ -409,7 +427,7 @@ class AjapopajaPlugin(object):
         """
         try:
             async with await self._get_session() as session:
-                async with session.get(OLLAMA_LIST_URI) as response:
+                async with session.get(self.ollama_list_uri) as response:
                     response.raise_for_status()
                     data = await response.json()
                     models = data.get("models", [])

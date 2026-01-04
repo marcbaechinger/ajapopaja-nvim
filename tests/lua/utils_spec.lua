@@ -1,4 +1,4 @@
-local utils = require("ajapopaja_plugin.utils")
+local utils = require("ajapopaja.utils")
 local format_prompt = utils.format_prompt
 
 describe("format_prompt", function()

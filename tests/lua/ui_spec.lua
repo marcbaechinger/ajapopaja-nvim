@@ -13,9 +13,9 @@ local mock_prompt_lib = {
 		return nil
 	end,
 }
-package.loaded["ajapopaja_plugin.prompt_library"] = mock_prompt_lib
+package.loaded["ajapopaja.prompt_library"] = mock_prompt_lib
 
-local ui = require("ajapopaja_plugin.ui")
+local ui = require("ajapopaja.ui")
 
 local original_schedule = vim.schedule
 local original_select = vim.ui.select
@@ -148,4 +148,4 @@ end)
 
 vim.ui.select = original_select
 vim.schedule = original_schedule
-package.loaded["ajapopaja_plugin.prompt_library"] = nil
+package.loaded["ajapopaja.prompt_library"] = nil

@@ -1,9 +1,9 @@
-local state = require("ajapopaja_plugin.state")
-local core = require("ajapopaja_plugin.core")
-local history = require("ajapopaja_plugin.history")
-local ui = require("ajapopaja_plugin.ui")
-local utils = require("ajapopaja_plugin.utils")
-local prompt_library = require("ajapopaja_plugin.prompt_library")
+local state = require("ajapopaja.state")
+local core = require("ajapopaja.core")
+local history = require("ajapopaja.history")
+local ui = require("ajapopaja.ui")
+local utils = require("ajapopaja.utils")
+local prompt_library = require("ajapopaja.prompt_library")
 
 local M = {}
 
@@ -122,12 +122,18 @@ function M.ajapopaja_insert_latest()
 	core.insert_to_buffer(item)
 end
 
-function M.setup()
+function M.setup(opts)
+	opts = opts or {}
+	vim.g.ajapopaja_ollama_host = opts.ollama_host or "http://localhost:11434"
+
 	history.setup(M)
 
 	local commands = {
 		AjapopajaHistory = history.open,
 		AjapopajaSelectModel = M.ajapopaja_select_model,
+		AjapopajaTransform = M.ajapopaja_transform,
+		AjapopajaSelectPrompt = M.ajapopaja_select_prompt,
+		AjapopajaReview = M.ajapopaja_review,
 		AjapopajaApplyLatest = M.ajapopaja_apply_latest,
 		AjapopajaInsertLatest = M.ajapopaja_insert_latest,
 	}
