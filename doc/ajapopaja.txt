@@ -59,36 +59,51 @@ Using lazy.nvim:
 ==============================================================================
 3. CONFIGURATION                                           *ajapopaja-config*
 
-The plugin is configured via the `setup()` function:
+The plugin is configured via the `setup()` function. Calling `setup()` is 
+required to initialize commands and background model refreshing.
 
 >lua
     require("ajapopaja").setup({
-        -- The URL where Ollama is running
+        -- The URL where your Ollama instance is reachable.
         ollama_host = "http://localhost:11434", -- default
+
+        -- Set to false to disable the default keybindings.
+        default_keymaps = true, -- default
     })
 <
 
-Global Variables:
-*g:ajapopaja_ollama_host*
-    The host address for the Ollama API. Overrides default if set.
+GLOBAL VARIABLES ~
 
-LUA LINE INTERGRATION
+*g:ajapopaja_ollama_host*
+    The host address for the Ollama API. This variable is set by the 
+    `setup()` function but can be manually overridden if needed for 
+    specific RPC calls.
+
+LUALINE INTEGRATION ~
+
+Ajapopaja provides a `get_status()` function that indicates the current 
+active model and a loading spinner (󱚣) when the LLM is processing a 
+request.
+
+Recommended `lualine.nvim` configuration:
+
 >lua
-  require("lualine").setup({
-    sections = {
-      lualine_x = {
-        {
-          function()
-            return require("ajapopaja").get_status()
-          end,
-          color = { fg = "#ff9e64" },
+    require("lualine").setup({
+      sections = {
+        lualine_x = {
+          {
+            function()
+              -- Displays active model and loading state
+              return require("ajapopaja").get_status()
+            end,
+            color = { fg = "#ff9e64" },
+          },
+          "encoding",
+          "fileformat",
+          "filetype",
         },
-        "encoding",
-        "fileformat",
-        "filetype",
       },
-    },
-  })
+    })
 <
 ==============================================================================
 4. USAGE                                                   *ajapopaja-usage*
@@ -125,51 +140,58 @@ REVIEWING CODE ~
 5. COMMANDS                                               *ajapopaja-commands*
 
 *:AjapopajaHistory*
-    Opens the floating history window to browse, manage, and iterate on past 
-    LLM interactions. See |ajapopaja-history-window| for controls.
+    Opens the interactive floating history window. Allows for browsing and 
+    applying past transformations or reviews. See |ajapopaja-history-window|.
 
 *:AjapopajaSelectModel*
-    Queries the Ollama API for available models and opens a selection UI to 
-    set the active model for the current session.
+    Opens a selection UI populated with models currently available on your 
+    Ollama instance.
+
+*:AjapopajaRefreshModels*
+    Manually triggers a refresh of the available LLM models list from the 
+    Ollama API.
 
 *:AjapopajaTransform*
-    Prompts for a multi-line natural language instruction to transform the 
-    current selection or buffer. Results are stored in the "transform" history.
+    [Range] Prompts for a multi-line natural language instruction to 
+    transform the current selection or buffer. Supports line ranges.
 
 *:AjapopajaSelectPrompt*
-    Opens a list of language-specific predefined prompts from the library.
-    See |ajapopaja-prompts| for details on how to customize these.
+    [Range] Opens the prompt library picker for the current filetype. 
+    Applies the chosen transformation to the selected range.
 
 *:AjapopajaReview*
-    Sends the current selection to the LLM for a code review based on the 
-    active model's capabilities. Results are stored in the "review" history.
+    [Range] Sends the selected code to the LLM for analysis. The resulting 
+    Markdown review is stored in the review history.
 
 *:AjapopajaApplyLatest*
-    An immediate action command. Replaces the text that was originally 
-    selected for the most recent transformation with the LLM's output.
+    Replaces the original selection of the most recent transformation 
+    interaction with the LLM's generated output.
 
 *:AjapopajaInsertLatest*
-    An immediate action command. Inserts the result of the most recent 
-    transformation at the current cursor position without replacing text.
+    Inserts the latest transformation result at the current cursor 
+    position. Does not replace existing text.
 
 *:AjapopajaEditPrompts*
-    Opens the prompt directory to customize and add prompts. Restart required.
+    Opens the directory containing your Markdown prompt library in the 
+    default file explorer. Useful for rapid customization.
 
 ==============================================================================
-6. KEYBINDINGS                                           *ajapopaja-mappings*
+6. KEYBINDINGS                                            *ajapopaja-mappings*
 
-The following default mappings are provided by `setup()`:
+The following default mappings are registered if `opts.default_keymaps` is 
+not set to `false` in |ajapopaja-config|.
 
-| Key         | Mode  | Description                                        |
-|-------------|-------|----------------------------------------------------|
-| <leader>as  | n, v  | Select a standard prompt from library              |
-| <leader>ai  | n, v  | Open multi-line input for custom transformation    |
-| <leader>ar  | n, v  | Trigger code review                                |
-| <leader>at  | n     | Apply latest transformation to buffer              |
-| <leader>ap  | n, v  | Paste (insert/replace) the latest transformation   |
-| <leader>ah  | n     | Open the History Window                            |
-| <leader>am  | n     | Change the LLM Model                               |
-| <leader>ae  | n     | Edit standard prompts (opens prompt directory)     |
+| Key        | Mode | Command                | Description                    |
+|------------|------|------------------------|--------------------------------|
+| <leader>as | n, v | AjapopajaSelectPrompt  | Select standard prompt         |
+| <leader>ai | n, v | AjapopajaTransform     | Prompt for transformation      |
+| <leader>ar | n, v | AjapopajaReview        | Trigger code review            |
+| <leader>at | n    | AjapopajaApplyLatest   | Apply latest to buffer         |
+| <leader>ap | n, v | AjapopajaInsertLatest  | Insert/Replace latest          |
+| <leader>ah | n    | AjapopajaHistory       | Open History Window            |
+| <leader>am | n    | AjapopajaSelectModel   | Select LLM Model               |
+| <leader>aM | n    | AjapopajaRefreshModels | Refresh model list             |
+| <leader>ae | n    | AjapopajaEditPrompts   | Open prompt library dir        |
 
 ==============================================================================
 7. HISTORY MANAGEMENT                                    *ajapopaja-history*

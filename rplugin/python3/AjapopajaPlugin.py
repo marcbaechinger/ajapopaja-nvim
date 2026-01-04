@@ -63,22 +63,53 @@ class AjapopajaPlugin(object):
 
     @property
     def ollama_chat_uri(self) -> str:
+        """Get the Ollama chat API URI.
+
+        Returns:
+            str: The complete URI for the Ollama chat API endpoint.
+        """
         return f"{self.ollama_host.rstrip('/')}/api/chat"
 
     @property
     def ollama_list_uri(self) -> str:
+        """Get the Ollama list models API URI.
+
+        Returns:
+            str: The complete URI for the Ollama list models API endpoint.
+        """
         return f"{self.ollama_host.rstrip('/')}/api/tags"
 
     @pynvim.function("AjapopajaGetCallTypes", sync=True)
     def get_call_types(self, _) -> list[str]:
+        """Get all available call type names.
+
+        Args:
+            _ (Any): Unused parameter.
+
+        Returns:
+            list[str]: A list of all call type names.
+        """
         return self.call_type_manager.get_all_call_type_names()
 
     def _set_available_models(self, available_models: list[dict[str, Any]]):
+        """Set the available models.
+
+        Args:
+            available_models (list[dict[str, Any]]): List of model dictionaries containing model information.
+        """
         with self._data_lock:
             self.models = available_models
 
     @pynvim.function("AjapopajaGetAvailableModels", sync=True)
     def get_available_models(self, _) -> list[str]:
+        """Get the names of all available models.
+
+        Args:
+            _ (Any): Unused parameter.
+
+        Returns:
+            list[str]: A list of available model names.
+        """
         with self._data_lock:
             return [model["name"] for model in self.models if "name" in model]
 
@@ -124,6 +155,18 @@ class AjapopajaPlugin(object):
 
     @pynvim.function("AjapopajaGetHistoryItem", sync=True)
     def get_history_item(self, args) -> Optional[dict]:
+        """Get a history item by call type and UID.
+
+        Args:
+            args: A list containing [call_type, uid] where call_type is the type of call
+                  and uid is the unique identifier for the history item.
+
+        Returns:
+            Optional[dict]: The history item dictionary if found, None otherwise.
+
+        Raises:
+            None: This function handles invalid call_type internally and returns None.
+        """
         call_type = args[0]
         uid = args[1]
         if call_type not in self.history_manager.history:
@@ -456,11 +499,7 @@ class AjapopajaPlugin(object):
                     models = data.get("models", [])
                     sorted_models = sorted(models, key=lambda x: x.get("name", ""))
 
-            def finalize():
-                self.vim.exec_lua("require('ajapopaja').available_models_loaded()")
-
             self._set_available_models(sorted_models)
-            self.vim.async_call(finalize)
         except aiohttp.ClientError as e:
             self._report_llm_error(
                 f"Ajapopaja: Failed to fetch models: {str(e)}", end_llm_use=False
@@ -476,14 +515,20 @@ class AjapopajaPlugin(object):
             )
         except Exception as e:
             self._report_llm_error(f"Ajapopaja: Unexpected error: {str(e)}")
+        finally:
+            self.vim.async_call(
+                lambda: self.vim.exec_lua(
+                    "require('ajapopaja').available_models_loaded()"
+                )
+            )
 
     def _report_llm_error(self, message: str, end_llm_use: bool = True):
-        def on_timeout_error() -> None:
+        def on_error() -> None:
             if end_llm_use:
                 self.llm_in_use = False
             self.vim.err_write(message)
 
-        self.vim.async_call(on_timeout_error)
+        self.vim.async_call(on_error)
 
     @pynvim.function("AjapopajaRpcHealth", sync=True)
     def health_check(self, _) -> list[str]:

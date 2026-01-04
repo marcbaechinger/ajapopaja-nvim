@@ -25,7 +25,7 @@ function M.available_models_loaded()
 	state.available_models = vim.fn.AjapopajaGetAvailableModels()
 	state.is_fetching_models = false
 	vim.notify(
-		"Ajapopaja: LLM list fetched. Number of available models: " .. #state.available_models,
+		"Ajapopaja - LLM list fetched. Number of available models: " .. #state.available_models,
 		vim.log.levels.INFO,
 		{ title = "Ajapopaja" }
 	)
