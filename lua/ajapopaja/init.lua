@@ -95,6 +95,19 @@ function M.ajapopaja_review()
 	end
 end
 
+local function open_prompt_directory()
+	local files = vim.api.nvim_get_runtime_file("prompts/default.md", false)
+
+	if #files == 0 then
+		vim.notify("Ajapopaja: Could not find prompts/default.md in runtimepath", vim.log.levels.ERROR)
+		return
+	end
+
+	local prompt_dir = vim.fn.fnamemodify(files[1], ":h")
+
+	vim.cmd("edit " .. prompt_dir)
+end
+
 local function get_latest_transformation()
 	if not state.call_uids["transform"] then
 		state.sync_history()
@@ -136,6 +149,7 @@ function M.setup(opts)
 		AjapopajaReview = M.ajapopaja_review,
 		AjapopajaApplyLatest = M.ajapopaja_apply_latest,
 		AjapopajaInsertLatest = M.ajapopaja_insert_latest,
+		AjapopajaEditPrompts = open_prompt_directory,
 	}
 
 	for name, fn in pairs(commands) do
@@ -157,19 +171,19 @@ function M.setup(opts)
 	)
 	keymap(
 		{ "v", "n" },
-		"<leader>at",
+		"<leader>ai",
 		M.ajapopaja_transform,
-		{ silent = true, desc = "Ajapopaja: Transform selection" }
+		{ silent = true, desc = "Ajapopaja: Prompt for transformation" }
 	)
 	keymap({ "v", "n" }, "<leader>ar", M.ajapopaja_review, { silent = true, desc = "Ajapopaja: Review" })
-	keymap("n", "<leader>ap", M.ajapopaja_apply_latest, { desc = "Ajapopaja: Apply Latest Transformation" })
+	keymap("n", "<leader>at", M.ajapopaja_apply_latest, { desc = "Ajapopaja: Apply Latest Transformation" })
 	keymap(
 		{ "v", "n" },
-		"<leader>ai",
+		"<leader>ap",
 		M.ajapopaja_insert_latest,
 		{ desc = "Ajapopaja: Insert/replace Latest Transformation" }
 	)
-	keymap("n", "<leader>aw", history.open, { desc = "Ajapopaja: Open history window" })
+	keymap("n", "<leader>ah", history.open, { desc = "Ajapopaja: Open history window" })
 	keymap("n", "<leader>am", M.ajapopaja_select_model, { desc = "Ajapopaja: Select LLM Model" })
 end
 

@@ -152,6 +152,9 @@ REVIEWING CODE ~
     An immediate action command. Inserts the result of the most recent 
     transformation at the current cursor position without replacing text.
 
+*:AjapopajaEditPrompts*
+    Opens the prompt directory to customize and add prompts. Restart required.
+
 ==============================================================================
 6. KEYBINDINGS                                           *ajapopaja-mappings*
 
@@ -160,11 +163,11 @@ The following default mappings are provided by `setup()`:
 | Key         | Mode  | Description                                        |
 |-------------|-------|----------------------------------------------------|
 | <leader>as  | n, v  | Select a standard prompt from library              |
-| <leader>at  | n, v  | Open multi-line input for custom transformation    |
+| <leader>ai  | n, v  | Open multi-line input for custom transformation    |
 | <leader>ar  | n, v  | Trigger code review                                |
-| <leader>ap  | n     | Apply latest transformation to buffer              |
-| <leader>ai  | n, v  | Insert/Replace with latest transformation          |
-| <leader>aw  | n     | Open the History Window                             |
+| <leader>at  | n     | Apply latest transformation to buffer              |
+| <leader>ap  | n, v  | Paste (insert/replace) the latest transformation   |
+| <leader>ah  | n     | Open the History Window                            |
 | <leader>am  | n     | Change the LLM Model                               |
 
 ==============================================================================
