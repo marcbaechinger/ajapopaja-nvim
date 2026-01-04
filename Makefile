@@ -22,7 +22,7 @@ test:
 	nvim --headless -u tests/init.lua -c "PlenaryBustedDirectory tests/lua { minimal_init = './tests/init.lua'}"
 
 test_formatted:
-	nvim --headless -u tests/init.lua -c "PlenaryBustedDirectory tests/lua { minimal_init = './tests/init.lua'}" | python tests/parse_test_output.py
+	nvim --headless -u tests/init.lua -c "PlenaryBustedDirectory tests/lua { minimal_init = './tests/init.lua'}" | python3 tests/parse_test_output.py
 
 clean:
 	rm -rf $(VENV_DIR)
