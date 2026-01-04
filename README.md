@@ -22,6 +22,8 @@ Ajapopaja provides a bridge between your Neovim buffer and Large Language Models
 
 All LLM calls are handled asynchronously using a Python-based RPC backend to ensure the Neovim UI remains responsive during generation.
 
+![Screenshot of the history window iterating on a transformation](images/screenshot.png)
+
 ## Installation
 
 ### Requirements
