@@ -19,10 +19,35 @@ function M.get_status()
 	return state.is_loading and ("󱚣 Ajapopaja: " .. state.current_model) or state.current_model
 end
 
--- Command Wrappers
+-- Command Wrappersthen
 -- These encapsulate the interaction logic for user-facing commands
+function M.available_models_loaded()
+	state.available_models = vim.fn.AjapopajaGetAvailableModels()
+	state.is_fetching_models = false
+	vim.notify(
+		"Ajapopaja: LLM list fetched. Number of available models:" .. #state.available_models,
+		vim.log.levels.INFO,
+		{ title = "Ajapopaja" }
+	)
+end
+
+-- Function to trigger the fetch of available models
+function M.refresh_models()
+	state.is_fetching_models = true
+	state.available_models = {}
+	vim.fn.AjapopajaGetAllModels()
+end
 
 function M.ajapopaja_select_model()
+	if state.is_fetching_models then
+		vim.notify("Still fetching list of LLMs...", vim.log.levels.WARN)
+		return
+	end
+	if #state.available_models == 0 then
+		M.refresh_models()
+		vim.notify("Fetching list of LLMs. Try selecting again in a sec.", vim.log.levels.WARN)
+		return
+	end
 	ui.select("Selec the LLM to use", state.available_models, function(choice)
 		vim.fn.AjapopajaSetModel(choice)
 		state.current_model = choice
@@ -138,12 +163,11 @@ end
 function M.setup(opts)
 	opts = opts or {}
 	vim.g.ajapopaja_ollama_host = opts.ollama_host or "http://localhost:11434"
-
 	history.setup(M)
-
 	local commands = {
 		AjapopajaHistory = history.open,
 		AjapopajaSelectModel = M.ajapopaja_select_model,
+		AjapopajaRefreshModels = M.refresh_models,
 		AjapopajaTransform = M.ajapopaja_transform,
 		AjapopajaSelectPrompt = M.ajapopaja_select_prompt,
 		AjapopajaReview = M.ajapopaja_review,
@@ -159,33 +183,42 @@ function M.setup(opts)
 		})
 	end
 
-	-- Register Default Keybindings
-	local keymap = vim.keymap.set
-
-	-- Transformation of selected text or entire buffer
-	keymap(
-		{ "v", "n" },
-		"<leader>as",
-		M.ajapopaja_select_prompt,
-		{ silent = true, desc = "Ajapopaja: Select a standard prompt" }
-	)
-	keymap(
-		{ "v", "n" },
-		"<leader>ai",
-		M.ajapopaja_transform,
-		{ silent = true, desc = "Ajapopaja: Prompt for transformation" }
-	)
-	keymap({ "v", "n" }, "<leader>ar", M.ajapopaja_review, { silent = true, desc = "Ajapopaja: Review" })
-	keymap("n", "<leader>at", M.ajapopaja_apply_latest, { desc = "Ajapopaja: Apply Latest Transformation" })
-	keymap(
-		{ "v", "n" },
-		"<leader>ap",
-		M.ajapopaja_insert_latest,
-		{ desc = "Ajapopaja: Insert/replace Latest Transformation" }
-	)
-	keymap("n", "<leader>ae", open_prompt_directory, { desc = "Ajapopaja: Edit prompts (open prompt dir)" })
-	keymap("n", "<leader>ah", history.open, { desc = "Ajapopaja: Open history window" })
-	keymap("n", "<leader>am", M.ajapopaja_select_model, { desc = "Ajapopaja: Select LLM Model" })
+	if opts.default_keymaps ~= false then
+		-- Register Default Keybindings
+		local keymap = vim.keymap.set
+		keymap(
+			{ "v", "n" },
+			"<leader>as",
+			"<cmd>AjapopajaSelectPrompt<CR>",
+			{ silent = true, desc = "Ajapopaja: Select a standard prompt" }
+		)
+		keymap(
+			{ "v", "n" },
+			"<leader>ai",
+			"<cmd>AjapopajaTransform<CR>",
+			{ silent = true, desc = "Ajapopaja: Prompt for transformation" }
+		)
+		keymap({ "v", "n" }, "<leader>ar", "<cmd>AjapopajaReview<CR>", { silent = true, desc = "Ajapopaja: Review" })
+		keymap("n", "<leader>at", "<cmd>AjapopajaApplyLatest<CR>", { desc = "Ajapopaja: Apply Latest Transformation" })
+		keymap(
+			{ "v", "n" },
+			"<leader>ap",
+			"<cmd>AjapopajaInsertLatest<CR>",
+			{ desc = "Ajapopaja: Insert/replace Latest Transformation" }
+		)
+		keymap(
+			"n",
+			"<leader>ae",
+			"<cmd>AjapopajaEditPrompts<CR>",
+			{ desc = "Ajapopaja: Edit prompts (open prompt dir)" }
+		)
+		keymap("n", "<leader>ah", "<cmd>AjapopajaHistory<CR>", { desc = "Ajapopaja: Open history window" })
+		keymap("n", "<leader>am", "<cmd>AjapopajaSelectModel<CR>", { desc = "Ajapopaja: Select LLM" })
+		keymap("n", "<leader>aM", "<cmd>AjapopajaRefreshModels<CR>", { desc = "Ajapopaja: Refresh list of LLMs" })
+	end
+	vim.schedule(function()
+		M.refresh_models()
+	end)
 end
 
 return M

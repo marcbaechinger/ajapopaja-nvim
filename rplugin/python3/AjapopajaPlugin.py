@@ -1,3 +1,4 @@
+import threading
 from typing import Dict, Any, Optional
 from uuid import uuid4
 import aiohttp
@@ -45,10 +46,12 @@ class AjapopajaPlugin(object):
         self.llm_in_use = False
         self.history_manager = HistoryManager(HISTORY_DIR)
         self.call_type_manager = CallTypeManager(CALL_TYPES_FILE)
+        self.available_models = list[dict[str, Any]]
         self.current_model = "qwen3-coder:30b"
         self.formatter = FormatUtil()
         self._http_session = None
         self._lock = asyncio.Lock()
+        self._data_lock = threading.RLock()
 
     @property
     def ollama_host(self) -> str:
@@ -69,6 +72,15 @@ class AjapopajaPlugin(object):
     @pynvim.function("AjapopajaGetCallTypes", sync=True)
     def get_call_types(self, _) -> list[str]:
         return self.call_type_manager.get_all_call_type_names()
+
+    def _set_available_models(self, available_models: list[dict[str, Any]]):
+        with self._data_lock:
+            self.models = available_models
+
+    @pynvim.function("AjapopajaGetAvailableModels", sync=True)
+    def get_available_models(self, _) -> list[str]:
+        with self._data_lock:
+            return [model["name"] for model in self.models if "name" in model]
 
     @pynvim.function("AjapopajaSetModel", sync=True)
     def set_model(self, args) -> bool:
@@ -410,7 +422,17 @@ class AjapopajaPlugin(object):
                 f"Ajapopaja: Unknown Error: {traceback.format_exception(e)}\n"
             )
 
-    async def getAllModels(self):
+    @pynvim.function("AjapopajaGetAllModels", sync=False)
+    def call_all_models(self, args) -> None:
+        """
+        Entry point for Lua to trigger getting all available ollama models.
+
+        """
+        asyncio.create_task(
+            self._async_get_all_models(ollama_list_uri=self.ollama_list_uri)
+        )
+
+    async def _async_get_all_models(self, ollama_list_uri):
         """
         Retrieve and sort all available models from the Ollama API.
 
@@ -426,12 +448,19 @@ class AjapopajaPlugin(object):
             TimeoutError: When request exceeds timeout limit
         """
         try:
+            sorted_models = []
             async with await self._get_session() as session:
-                async with session.get(self.ollama_list_uri) as response:
+                async with session.get(ollama_list_uri) as response:
                     response.raise_for_status()
                     data = await response.json()
                     models = data.get("models", [])
-                    return sorted(models, key=lambda x: x.get("name", ""))
+                    sorted_models = sorted(models, key=lambda x: x.get("name", ""))
+
+            def finalize():
+                self.vim.exec_lua("require('ajapopaja').available_models_loaded()")
+
+            self._set_available_models(sorted_models)
+            self.vim.async_call(finalize)
         except aiohttp.ClientError as e:
             self._report_llm_error(
                 f"Ajapopaja: Failed to fetch models: {str(e)}", end_llm_use=False
