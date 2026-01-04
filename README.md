@@ -34,7 +34,7 @@ All LLM calls are handled asynchronously using a Python-based RPC backend to ens
 
 ```lua
 {
-    "marcbaechinger/ajapopaja-vim",
+    "marcbaechinger/ajapopaja-nvim",
     build = ":UpdateRemotePlugins",
     config = function()
         require("ajapopaja").setup({

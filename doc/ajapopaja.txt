@@ -47,7 +47,7 @@ PLUGIN SETUP ~
 Using lazy.nvim:
 >lua
     {
-        "marcbaechinger/ajapopaja-vim",
+        "marcbaechinger/ajapopaja-nvim",
         build = ":UpdateRemotePlugins",
         config = function()
             require("ajapopaja").setup({
